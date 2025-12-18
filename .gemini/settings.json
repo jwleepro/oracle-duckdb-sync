@@ -1,0 +1,40 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__serena__list_dir",
+      "mcp__serena__activate_project",
+      "default_api:replace",
+      "default_api:save_memory",
+      "default_api:run_shell_command",
+      "default_api:write_file",
+      "default_api:web_fetch",
+      "default_api:discovered_tool_*",
+      "replace",
+      "save_memory",
+      "run_shell_command",
+      "write_file",
+      "web_fetch",
+      "read_file",
+      "search_file_content",
+      "glob",
+      "list_directory",
+      "codebase_investigator",
+      "google_web_search"
+    ],
+    "deny": [
+      "Bash(rm:*)",
+      "Bash(rmdir:*)",
+      "Bash(del:*)",
+      "PowerShell(Remove-Item:*)"
+    ],
+    "ask": [],
+    "defaultMode": "acceptEdits"
+  },
+  "enabledMcpjsonServers": [
+    "serena",
+    "context7"
+  ],
+  "env": {
+    "MAX_THINKING_TOKENS": "0"
+  }
+}

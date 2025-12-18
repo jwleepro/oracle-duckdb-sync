@@ -1,0 +1,3 @@
+# Temporary sqlnet.ora for testing
+# Disable Windows authentication to allow username/password authentication
+SQLNET.AUTHENTICATION_SERVICES = (NONE)

@@ -1,0 +1,33 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "oracle-duckdb-sync"
+version = "0.1.0"
+description = "Oracle to DuckDB data synchronization and analysis dashboard"
+requires-python = ">=3.9"
+dependencies = [
+    "oracledb>=3.4.1",
+    "duckdb>=1.0.0",
+    "pytest>=9.0.2",
+    "python-dotenv>=1.0.1",
+    "apscheduler>=3.11.0",
+    "streamlit>=1.52.2",
+    "plotly>=6.5.0",
+    "pandas>=2.3.3",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest-cov>=7.0.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["test"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
