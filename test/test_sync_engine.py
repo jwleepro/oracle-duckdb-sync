@@ -120,3 +120,62 @@ def test_083_save_load_sync_state(tmp_path, mock_config):
         engine.save_state("O_TABLE", "2023-05-20 12:00:00", file_path=str(state_file))
         val = engine.load_state("O_TABLE", file_path=str(state_file))
         assert val == "2023-05-20 12:00:00"
+
+
+def test_140_sync_state_save_and_load(tmp_path, mock_config):
+    """TEST-140: sync_state 저장·로드
+    
+    Comprehensive test for sync state management:
+    1. Save state for a table
+    2. Load state and verify correctness
+    3. Update state for same table
+    4. Save state for multiple tables
+    5. Handle non-existent state file
+    6. Handle corrupted state file
+    """
+    with patch("oracle_duckdb_sync.sync_engine.OracleSource"), \
+         patch("oracle_duckdb_sync.sync_engine.DuckDBSource"):
+        engine = SyncEngine(mock_config)
+        state_file = tmp_path / "sync_state.json"
+        
+        # Test 1: Save and load basic state
+        engine.save_state("TABLE_A", "2024-01-01 10:00:00", file_path=str(state_file))
+        loaded = engine.load_state("TABLE_A", file_path=str(state_file))
+        assert loaded == "2024-01-01 10:00:00"
+        
+        # Test 2: Update existing table state
+        engine.save_state("TABLE_A", "2024-01-02 15:30:00", file_path=str(state_file))
+        loaded = engine.load_state("TABLE_A", file_path=str(state_file))
+        assert loaded == "2024-01-02 15:30:00"
+        
+        # Test 3: Save state for multiple tables
+        engine.save_state("TABLE_B", "2024-01-03 08:00:00", file_path=str(state_file))
+        engine.save_state("TABLE_C", "2024-01-04 12:00:00", file_path=str(state_file))
+        
+        # Verify all states are preserved
+        assert engine.load_state("TABLE_A", file_path=str(state_file)) == "2024-01-02 15:30:00"
+        assert engine.load_state("TABLE_B", file_path=str(state_file)) == "2024-01-03 08:00:00"
+        assert engine.load_state("TABLE_C", file_path=str(state_file)) == "2024-01-04 12:00:00"
+        
+        # Test 4: Handle non-existent table
+        non_existent = engine.load_state("TABLE_D", file_path=str(state_file))
+        assert non_existent is None
+        
+        # Test 5: Handle non-existent state file
+        non_existent_file = tmp_path / "does_not_exist.json"
+        result = engine.load_state("TABLE_A", file_path=str(non_existent_file))
+        assert result is None
+        
+        # Test 6: Handle corrupted state file
+        corrupted_file = tmp_path / "corrupted.json"
+        with open(corrupted_file, "w") as f:
+            f.write("{ invalid json content")
+        
+        # Should return None without crashing
+        result = engine.load_state("TABLE_A", file_path=str(corrupted_file))
+        assert result is None
+        
+        # Should be able to save after corruption
+        engine.save_state("TABLE_NEW", "2024-01-05 14:00:00", file_path=str(corrupted_file))
+        loaded = engine.load_state("TABLE_NEW", file_path=str(corrupted_file))
+        assert loaded == "2024-01-05 14:00:00"

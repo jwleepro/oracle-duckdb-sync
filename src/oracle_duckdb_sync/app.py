@@ -39,11 +39,66 @@ def main():
         primary_key = config.sync_primary_key
         time_column = config.sync_time_column
     
-    if st.sidebar.button("지금 동기화 실행"):
+    # Test sync button with row limit
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🧪 테스트 동기화")
+    test_row_limit = st.sidebar.number_input(
+        "테스트 행 수", 
+        min_value=1000, 
+        max_value=1000000, 
+        value=10000, 
+        step=1000,
+        help="테스트로 가져올 최대 행 수 (기본: 1만)"
+    )
+    
+    if st.sidebar.button("🧪 테스트 동기화 실행 (제한된 행)"):
         if not table_name:
             st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
         else:
-            st.sidebar.info(f"동기화 중... ({table_name})")
+            st.sidebar.info(f"🧪 테스트 동기화 중... ({table_name}, 최대 {test_row_limit:,} 행)")
+            try:
+                from oracle_duckdb_sync.sync_engine import SyncEngine
+                
+                # Initialize sync engine
+                sync_engine = SyncEngine(config)
+                
+                # Use duckdb table name from config or convert to lowercase
+                if config.sync_duckdb_table:
+                    duckdb_table = config.sync_duckdb_table
+                else:
+                    table_parts = table_name.split('.')
+                    duckdb_table = table_parts[-1].lower()
+                
+                # Add _test suffix to avoid overwriting production table
+                test_table = f"{duckdb_table}_test"
+                
+                # Perform test sync with limited rows
+                st.sidebar.info(f"📥 {test_row_limit:,} 행으로 제한된 테스트 동기화 시작...")
+                total_rows = sync_engine.test_sync(
+                    oracle_table=table_name,
+                    duckdb_table=test_table,
+                    primary_key=primary_key,
+                    row_limit=test_row_limit
+                )
+                st.sidebar.success(f"✅ 테스트 동기화 완료! {total_rows:,} 행이 '{test_table}' 테이블에 동기화되었습니다.")
+                st.sidebar.info(f"💡 테스트 테이블: '{test_table}'")
+                st.sidebar.info(f"💡 정상 동작 확인 후 '전체 동기화 실행' 버튼을 사용하세요.")
+                
+            except Exception as e:
+                import traceback
+                error_detail = traceback.format_exc()
+                st.sidebar.error(f"❌ 테스트 동기화 실패: {e}")
+                with st.sidebar.expander("상세 에러 정보"):
+                    st.code(error_detail)
+    
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🚀 전체 동기화")
+    
+    if st.sidebar.button("🚀 전체 동기화 실행"):
+        if not table_name:
+            st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
+        else:
+            st.sidebar.info(f"🚀 전체 동기화 중... ({table_name})")
             try:
                 from oracle_duckdb_sync.sync_engine import SyncEngine
                 from oracle_duckdb_sync.oracle_source import OracleSource
