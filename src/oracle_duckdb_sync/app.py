@@ -45,7 +45,7 @@ def main():
     test_row_limit = st.sidebar.number_input(
         "테스트 행 수", 
         min_value=1000, 
-        max_value=1000000, 
+        max_value=10000, 
         value=10000, 
         step=1000,
         help="테스트로 가져올 최대 행 수 (기본: 1만)"
