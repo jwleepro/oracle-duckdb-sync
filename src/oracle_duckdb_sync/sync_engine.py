@@ -118,19 +118,23 @@ class SyncEngine:
             duckdb_type = self.duckdb.map_oracle_type(oracle_type)
             duckdb_columns.append((col_name, duckdb_type))
         
-        # Step 3: Create table in DuckDB
+        # Step 3: Create table in DuckDB (drop if exists for test)
         self.logger.info(f"Creating table {duckdb_table} in DuckDB")
-        create_ddl = self.duckdb.build_create_table_query(
-            duckdb_table, 
-            duckdb_columns, 
-            primary_key
-        )
+        
+        # Drop test table if it exists to avoid duplicate key errors
+        if self.duckdb.table_exists(duckdb_table):
+            self.logger.info(f"Dropping existing test table {duckdb_table}")
+            self.duckdb.execute(f"DROP TABLE IF EXISTS {duckdb_table}")
+        
+        # Create table WITHOUT primary key for test (faster inserts)
+        col_defs = ", ".join([f"{name} {duckdb_type}" for name, duckdb_type in duckdb_columns])
+        create_ddl = f"CREATE TABLE {duckdb_table} ({col_defs})"
+        self.logger.info(f"Creating test table WITHOUT PRIMARY KEY for faster inserts")
         self.duckdb.execute(create_ddl)
         
-        # Step 4: Sync limited data
+        # Step 4: Sync limited data with proper row limit enforcement
         self.logger.info(f"Starting test sync from {oracle_table} to {duckdb_table} (limit: {row_limit} rows)")
-        query = f"SELECT * FROM {oracle_table} WHERE ROWNUM <= {row_limit}"
-        return self._execute_sync(query, duckdb_table, batch_size=10000)
+        return self._execute_limited_sync(oracle_table, duckdb_table, row_limit, duckdb_columns, batch_size=10000)
 
     def incremental_sync(self, oracle_table: str, duckdb_table: str, column: str, last_value: str, retries: int = 3):
         # Ensure Oracle connection is established
@@ -197,6 +201,132 @@ class SyncEngine:
         if elapsed_time > 0:
             rows_per_second = total_count / elapsed_time
             self.logger.info(f"Processing rate: {rows_per_second:.2f} rows/second")
+
+        return total_count
+
+    def _execute_limited_sync(self, oracle_table: str, duckdb_table: str, row_limit: int, duckdb_columns: list, batch_size: int = 10000, max_duration: int = 3600):
+        """Execute sync with strict row limit enforcement
+        
+        Args:
+            oracle_table: Source Oracle table name
+            duckdb_table: Target DuckDB table name
+            row_limit: Maximum number of rows to sync
+            duckdb_columns: List of (column_name, duckdb_type) tuples
+            batch_size: Number of rows per batch
+            max_duration: Maximum duration in seconds
+            
+        Returns:
+            int: Total number of rows synchronized
+        """
+        self.duckdb.ensure_database()
+        
+        # Check if target table exists
+        if not self.duckdb.table_exists(duckdb_table):
+            raise ValueError(
+                f"Table '{duckdb_table}' does not exist in DuckDB. "
+                f"Please run full_sync() first to create the table schema."
+            )
+        
+        # Ensure Oracle connection
+        if not self.oracle.conn:
+            self.oracle.connect()
+        
+        self.logger.info(f"=" * 80)
+        self.logger.info(f"Starting limited sync: {oracle_table} -> {duckdb_table}")
+        self.logger.info(f"Row limit: {row_limit}, Batch size: {batch_size}")
+        self.logger.info(f"=" * 80)
+        
+        start_time = time.time()
+        total_count = 0
+        
+        # Build query with ROWNUM limit using subquery (Oracle requires this for proper limiting)
+        query = f"SELECT * FROM (SELECT * FROM {oracle_table}) WHERE ROWNUM <= {row_limit}"
+        
+        # Create a fresh cursor for this limited sync
+        cursor = self.oracle.conn.cursor()
+        
+        try:
+            # Execute query once
+            self.logger.info(f"[ORACLE] Executing query: {query}")
+            cursor.execute(query)
+            self.logger.info(f"[ORACLE] Query executed successfully")
+            
+            batch_number = 0
+            
+            # Fetch and insert in batches, respecting the row_limit
+            while total_count < row_limit:
+                batch_number += 1
+                
+                # Check timeout
+                elapsed = time.time() - start_time
+                if elapsed > max_duration:
+                    raise TimeoutError(f"Sync exceeded maximum duration ({max_duration}s)")
+                
+                # Calculate how many rows to fetch in this batch
+                remaining = row_limit - total_count
+                current_batch_size = min(batch_size, remaining)
+                
+                self.logger.info(f"[BATCH {batch_number}] Preparing to fetch {current_batch_size} rows (total so far: {total_count}, remaining: {remaining})")
+                
+                # Fetch batch from cursor
+                self.logger.info(f"[ORACLE] Fetching batch from Oracle...")
+                fetch_start = time.time()
+                rows = cursor.fetchmany(current_batch_size)
+                fetch_time = time.time() - fetch_start
+                
+                if not rows:
+                    self.logger.info(f"[ORACLE] No more rows to fetch. End of data.")
+                    break
+                
+                self.logger.info(f"[ORACLE] Fetched {len(rows)} rows from Oracle in {fetch_time:.2f}s")
+                
+                # Convert datetime objects
+                self.logger.info(f"[PROCESS] Converting datetime objects...")
+                from oracle_duckdb_sync.oracle_source import datetime_handler
+                data = [tuple(datetime_handler(v) for v in row) for row in rows]
+                self.logger.info(f"[PROCESS] Converted {len(data)} rows")
+                
+                # Extract column names for Pandas DataFrame
+                column_names = [col_name for col_name, _ in duckdb_columns]
+                
+                # Insert batch with Pandas DataFrame (100x faster)
+                self.logger.info(f"[DUCKDB] Starting insert of {len(data)} rows into DuckDB table '{duckdb_table}'...")
+                insert_start = time.time()
+                self.duckdb.insert_batch(duckdb_table, data, column_names=column_names, logger=self.logger)
+                insert_time = time.time() - insert_start
+                self.logger.info(f"[DUCKDB] Total insert completed in {insert_time:.2f}s")
+                
+                total_count += len(data)
+                self.logger.info(f"[PROGRESS] Total rows processed: {total_count}/{row_limit} ({total_count/row_limit*100:.1f}%)")
+                self._log_progress(duckdb_table, total_count, len(data))
+                
+                # CRITICAL: Stop if we reached the limit
+                if total_count >= row_limit:
+                    self.logger.info(f"[COMPLETE] Reached row limit: {total_count} >= {row_limit}. Stopping.")
+                    break
+                
+                # Stop if we got less than requested (end of data)
+                if len(data) < current_batch_size:
+                    self.logger.info(f"[COMPLETE] Got less than requested ({len(data)} < {current_batch_size}). End of data.")
+                    break
+        
+        finally:
+            # Always close the cursor
+            self.logger.info(f"[CLEANUP] Closing Oracle cursor...")
+            cursor.close()
+            self.logger.info(f"[CLEANUP] Cursor closed")
+        
+        # Log statistics
+        elapsed_time = time.time() - start_time
+        self.logger.info(f"=" * 80)
+        self.logger.info(f"[SUMMARY] Test sync completed!")
+        self.logger.info(f"[SUMMARY] Total rows processed: {total_count}")
+        self.logger.info(f"[SUMMARY] Row limit: {row_limit}")
+        self.logger.info(f"[SUMMARY] Total time: {elapsed_time:.2f} seconds")
+        if elapsed_time > 0:
+            rows_per_second = total_count / elapsed_time
+            self.logger.info(f"[SUMMARY] Processing rate: {rows_per_second:.2f} rows/second")
+        self.logger.info(f"=" * 80)
 
         return total_count
 

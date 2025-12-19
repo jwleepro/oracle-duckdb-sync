@@ -5,6 +5,7 @@ import time
 import datetime
 from oracle_duckdb_sync.config import Config
 from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.logger import setup_logger
 
 
 class SyncWorker:
@@ -37,6 +38,7 @@ class SyncWorker:
         self.error_info = None
         self.total_rows = 0
         self.start_time = None
+        self.logger = setup_logger('SyncWorker')  # Initialize logger
     
     def start(self):
         """Start the sync operation in a background thread"""
@@ -109,28 +111,45 @@ class SyncWorker:
             
         except Exception as e:
             # Capture error information
+            error_traceback = traceback.format_exc()
             self.error_info = {
                 'exception': str(e),
-                'traceback': traceback.format_exc()
+                'traceback': error_traceback
             }
             self.status = 'error'
+            
+            # Log error to file
+            self.logger.error(f"Sync operation failed: {e}")
+            self.logger.error(f"Traceback:\n{error_traceback}")
             
             # Send error message
             if self.progress_queue:
                 self._send_message('error', self.error_info)
     
     def _create_progress_callback(self):
-        """Create a progress callback function"""
+        """Create a progress callback function with ETA calculation"""
         def callback(total_rows, batch_rows):
             """Progress callback that sends messages to queue"""
             elapsed = time.time() - self.start_time
             rows_per_second = total_rows / elapsed if elapsed > 0 else 0
             
+            # Calculate ETA if we know total expected rows
+            eta = None
+            percentage = 0
+            if hasattr(self, 'expected_rows') and self.expected_rows > 0:
+                percentage = total_rows / self.expected_rows
+                remaining_rows = self.expected_rows - total_rows
+                if rows_per_second > 0:
+                    eta_seconds = remaining_rows / rows_per_second
+                    eta = time.strftime('%H:%M:%S', time.gmtime(eta_seconds))
+            
             self._send_message('progress', {
                 'total_rows': total_rows,
                 'batch_rows': batch_rows,
                 'elapsed_time': elapsed,
-                'rows_per_second': rows_per_second
+                'rows_per_second': rows_per_second,
+                'percentage': percentage,
+                'eta': eta
             })
         
         return callback

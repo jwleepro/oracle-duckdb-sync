@@ -17,9 +17,12 @@ def setup_logger(name: str, log_file: str = "sync.log", level=logging.INFO):
     console_handler.setFormatter(formatter)
     logger.addHandler(console_handler)
     
-    # 파일 출력
+    # 파일 출력 (즉시 flush)
     file_handler = logging.FileHandler(log_file)
     file_handler.setFormatter(formatter)
+    file_handler.setLevel(level)
+    # Force flush after every log
+    file_handler.flush = lambda: file_handler.stream.flush() if file_handler.stream else None
     logger.addHandler(file_handler)
     
     return logger
