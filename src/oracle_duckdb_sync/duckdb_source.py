@@ -5,11 +5,12 @@ from oracle_duckdb_sync.config import Config
 class DuckDBSource:
     def __init__(self, config: Config):
         self.config = config
+        self.conn = None  # Initialize to None first
         self.conn = duckdb.connect(self.config.duckdb_path)
 
     def disconnect(self):
         """Close the DuckDB connection"""
-        if self.conn:
+        if hasattr(self, 'conn') and self.conn:
             self.conn.close()
         self.conn = None
 

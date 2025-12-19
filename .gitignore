@@ -72,6 +72,8 @@ env/
 .env.*.local
 
 # Database
+*.duckdb
+*.duckdb.wal
 *.db
 *.sqlite
 *.sqlite3
@@ -85,6 +87,7 @@ env/
 ~*
 
 # Large files or unnecessary directories
+nul
 .git/
 .github/
 Documentation/

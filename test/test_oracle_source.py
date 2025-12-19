@@ -144,8 +144,8 @@ def test_032_incremental_query(mock_config):
     """TEST-032: 증분 조회 쿼리 생성 확인"""
     source = OracleSource(mock_config)
     last_sync = "2023-01-01 00:00:00"
-    query = source.build_incremental_query("MY_TABLE", "TRAN_TIME", last_sync)
-    assert "TRAN_TIME > '2023-01-01 00:00:00'" in query
+    query = source.build_incremental_query("TEST_TABLE", "TIMESTAMP_COL", last_sync)
+    assert "TIMESTAMP_COL > '2023-01-01 00:00:00'" in query
 
 def test_033_date_conversion_handler(mock_config):
     """TEST-033: DATE 컬럼 ISO 문자열 변환 처리 확인"""

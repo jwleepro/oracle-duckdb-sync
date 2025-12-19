@@ -46,8 +46,8 @@ def test_080_incremental_sync_query(mock_config):
         mock_oracle = mock_oracle_cls.return_value
         engine = SyncEngine(mock_config)
         last_sync = "2023-01-01 10:00:00"
-        engine.incremental_sync("O", "D", "TRAN_TIME", last_sync)
-        mock_oracle.build_incremental_query.assert_called_with("O", "TRAN_TIME", last_sync)
+        engine.incremental_sync("O", "D", "TIMESTAMP_COL", last_sync)
+        mock_oracle.build_incremental_query.assert_called_with("O", "TIMESTAMP_COL", last_sync)
 
 
 def test_082_retry_on_failure(mock_config):
@@ -102,7 +102,7 @@ def test_081_incremental_upsert_handling(mock_config):
         mock_oracle.fetch_batch.side_effect = [[(1, "A"), (2, "B"), (3, "C")], []]
 
         engine = SyncEngine(mock_config)
-        total1 = engine.incremental_sync("O_TABLE", "D_TABLE", "TRAN_TIME", "2023-01-01")
+        total1 = engine.incremental_sync("SOURCE_TABLE", "TARGET_TABLE", "TIMESTAMP_COL", "2023-01-01")
 
         assert total1 == 3
         assert mock_duckdb.insert_batch.called

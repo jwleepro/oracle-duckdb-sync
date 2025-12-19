@@ -49,6 +49,10 @@ class SyncEngine:
         Returns:
             int: Total number of rows synchronized
         """
+        # Ensure Oracle connection is established
+        if not self.oracle.conn:
+            self.oracle.connect()
+        
         # Step 1: Get Oracle table schema
         self.logger.info(f"Getting schema for table {oracle_table}")
         schema = self.oracle.get_table_schema(oracle_table)
@@ -76,6 +80,10 @@ class SyncEngine:
         return self.sync_in_batches(oracle_table, duckdb_table)
 
     def incremental_sync(self, oracle_table: str, duckdb_table: str, column: str, last_value: str, retries: int = 3):
+        # Ensure Oracle connection is established
+        if not self.oracle.conn:
+            self.oracle.connect()
+        
         query = self.oracle.build_incremental_query(oracle_table, column, last_value)
         last_exception = None
         for attempt in range(retries):

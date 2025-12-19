@@ -37,8 +37,8 @@ cp .env.example .env
 **동기화 대상 테이블 설정:**
 - `SYNC_ORACLE_TABLE`: 동기화할 Oracle 원본 테이블명 (필수)
 - `SYNC_DUCKDB_TABLE`: DuckDB 대상 테이블명 (선택, 비워두면 Oracle 테이블명을 소문자로 사용)
-- `SYNC_PRIMARY_KEY`: Primary Key 컬럼명 (기본값: ID)
-- `SYNC_TIME_COLUMN`: 증분 동기화용 시간 컬럼명 (기본값: TRAN_TIME)
+- `SYNC_PRIMARY_KEY`: Oracle 원본 테이블의 Primary Key 컬럼명. Primary Key가 Composite Key인 경우 콤마로 표현. ex) FACTORY LOT_ID
+- `SYNC_TIME_COLUMN`: 증분 동기화용 Oracle 원본 테이블의 시간 컬럼명. Composite NON UNIQUE INDEX인 경우 콤마로 표현. ex) FACTORY, TRAN_TIME
 
 **예시:**
 ```env
@@ -79,11 +79,55 @@ pytest test/test_config.py -v
 
 ```bash
 # E2E 테스트 (실제 DB 연결 필요)
-pytest test/test_e2e.py::test_130_full_sync_e2e -v
+pytest test/test_e2e.py::test_131_incremental_sync_e2e_real_db -v
 
 # 전체 테스트 실행
 pytest -v
 ```
+
+### 2.4 Streamlit UI 실행
+
+**1단계: Oracle Instant Client 설치 (Windows)**
+
+Oracle 11g 연결을 위해 Oracle Instant Client가 필요합니다:
+
+1. [Oracle Instant Client 다운로드](https://www.oracle.com/database/technologies/instant-client/downloads.html)
+2. Windows용 64-bit Basic 패키지 다운로드
+3. `D:\instantclient_23_0`에 압축 해제 (또는 원하는 경로)
+4. `src/oracle_duckdb_sync/oracle_source.py`에서 경로 확인:
+   ```python
+   lib_dir = os.environ.get('ORACLE_HOME') or r'D:\instantclient_23_0'
+   ```
+
+**2단계: Streamlit 앱 실행**
+
+```bash
+# Windows PowerShell/CMD
+streamlit run src/oracle_duckdb_sync/app.py
+
+# 브라우저가 자동으로 열리며 http://localhost:8501 에서 확인 가능
+```
+
+**3단계: UI 사용법**
+
+1. **동기화 실행**:
+   - 좌측 사이드바에서 "지금 동기화 실행" 버튼 클릭
+   - `.env`에 설정된 테이블이 자동으로 사용됨
+   - 또는 "수동 설정 사용" 체크박스로 테이블명 직접 입력
+
+2. **데이터 조회 및 시각화**:
+   - 동기화된 데이터를 DuckDB에서 조회
+   - 기간 필터, 정렬, 차트 렌더링 등 다양한 기능 제공
+   - CSV/Excel 다운로드 지원
+
+3. **동기화 상태 확인**:
+   - 동기화 로그 및 상태를 UI에서 실시간 확인
+   - 마지막 동기화 시간 및 처리된 행 수 표시
+
+**주의사항**:
+- 첫 실행 시 Oracle → DuckDB로 전체 데이터 동기화가 필요합니다 (수십 분 소요 가능)
+- 이후부터는 증분 동기화로 빠르게 업데이트됩니다
+- TEST-131에서 확인된 성능: 약 200만 행 기준 5분, 초당 약 7,000 rows 처리
 
 ## 3. 배경 및 문제 정의
 

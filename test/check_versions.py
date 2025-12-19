@@ -2,7 +2,7 @@ import importlib.metadata
 
 packages = [
     "oracledb",
-    "clickhouse-driver",
+    "duckdb",
     "pytest",
     "python-dotenv",
     "apscheduler",

@@ -100,4 +100,4 @@ def test_016_sync_table_default_values(setup_env, monkeypatch):
     assert config.sync_oracle_table == ""
     assert config.sync_duckdb_table == ""
     assert config.sync_primary_key == "ID"  # Default
-    assert config.sync_time_column == "TRAN_TIME"  # Default
+    assert config.sync_time_column == "TIMESTAMP_COL"  # Default

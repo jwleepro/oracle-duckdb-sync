@@ -17,7 +17,7 @@ class Config:
     sync_oracle_table: str = ""
     sync_duckdb_table: str = ""
     sync_primary_key: str = "ID"
-    sync_time_column: str = "TRAN_TIME"
+    sync_time_column: str = "TIMESTAMP_COL"
 
 def load_config() -> Config:
     load_dotenv()
@@ -47,9 +47,11 @@ def load_config() -> Config:
     sync_oracle_table = os.getenv("SYNC_ORACLE_TABLE", "")
     sync_duckdb_table = os.getenv("SYNC_DUCKDB_TABLE", "")
     
-    # If duckdb table not specified, use oracle table name in lowercase
+    # If duckdb table not specified, use oracle table name in lowercase without schema
     if sync_oracle_table and not sync_duckdb_table:
-        sync_duckdb_table = sync_oracle_table.lower()
+        # Remove schema prefix (e.g., "SCHEMA.TABLE" → "table")
+        table_parts = sync_oracle_table.split('.')
+        sync_duckdb_table = table_parts[-1].lower()
 
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
@@ -64,5 +66,5 @@ def load_config() -> Config:
         sync_oracle_table=sync_oracle_table,
         sync_duckdb_table=sync_duckdb_table,
         sync_primary_key=os.getenv("SYNC_PRIMARY_KEY", "ID"),
-        sync_time_column=os.getenv("SYNC_TIME_COLUMN", "TRAN_TIME")
+        sync_time_column=os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL")
     )

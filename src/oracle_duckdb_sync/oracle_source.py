@@ -16,17 +16,24 @@ def _ensure_oracle_client():
     global _oracle_client_initialized
     if not _oracle_client_initialized:
         try:
+            # Oracle Instant Client 경로
+            lib_dir = os.environ.get('ORACLE_HOME') or r'D:\instantclient_23_0'
+            
             # TNS_ADMIN이 설정되어 있으면 해당 디렉토리를 사용
             config_dir = os.environ.get('TNS_ADMIN')
+            
             if config_dir:
-                oracledb.init_oracle_client(config_dir=config_dir)
+                oracledb.init_oracle_client(lib_dir=lib_dir, config_dir=config_dir)
             else:
-                oracledb.init_oracle_client()
+                oracledb.init_oracle_client(lib_dir=lib_dir)
             _oracle_client_initialized = True
-        except Exception:
+        except Exception as e:
             # 이미 초기화되었거나 Oracle Client가 없는 경우
             # Thin 모드로 폴백 (Oracle 12.1 이상만 지원)
-            pass
+            import logging
+            logger = logging.getLogger("OracleSource")
+            logger.warning(f"Failed to initialize Oracle thick client: {e}")
+            logger.warning("Falling back to thin mode (Oracle 12.1+ only)")
 
 def datetime_handler(value):
     if isinstance(value, datetime.datetime):
@@ -155,18 +162,46 @@ class OracleSource:
     def get_table_schema(self, table_name: str):
         """Get table schema from Oracle data dictionary
         
+        Args:
+            table_name: Table name, can be "SCHEMA.TABLE" or just "TABLE"
+        
         Returns:
             list: List of tuples (column_name, data_type)
         """
-        query = """
-        SELECT column_name, data_type
-        FROM user_tab_columns
-        WHERE table_name = :table_name
-        ORDER BY column_id
-        """
+        # Ensure connection is established
+        if not self.conn:
+            self.connect()
+        
+        # Parse schema and table name
+        if '.' in table_name:
+            schema_name, table_only = table_name.split('.', 1)
+            schema_name = schema_name.upper()
+            table_only = table_only.upper()
+        else:
+            schema_name = None
+            table_only = table_name.upper()
+        
+        # Build query based on whether schema is specified
+        if schema_name:
+            query = """
+            SELECT column_name, data_type
+            FROM all_tab_columns
+            WHERE owner = :schema_name AND table_name = :table_name
+            ORDER BY column_id
+            """
+            params = {"schema_name": schema_name, "table_name": table_only}
+        else:
+            query = """
+            SELECT column_name, data_type
+            FROM user_tab_columns
+            WHERE table_name = :table_name
+            ORDER BY column_id
+            """
+            params = {"table_name": table_only}
+        
         cursor = self.conn.cursor()
         try:
-            cursor.execute(query, {"table_name": table_name.upper()})
+            cursor.execute(query, params)
             return cursor.fetchall()
         finally:
             cursor.close()
