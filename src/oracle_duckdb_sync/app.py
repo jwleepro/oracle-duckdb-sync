@@ -62,45 +62,37 @@ def main():
 
     try:
         config = load_config()
+
+        if not config.sync_oracle_table:
+            raise ValueError("SYNC_ORACLE_TABLE이 .env 파일에 설정되지 않았습니다.")
+
         duckdb = DuckDBSource(config)
     except Exception as e:
         app_logger.error(f"설정 로드 실패: {e}")
         st.error(f"설정을 로드할 수 없습니다: {e}")
         return
-
+    
+    # Sidebar 메뉴 구성을 바꾸려면 여길 고쳐야 함. jwlee
     st.sidebar.header("동기화 설정")
     
     # Display current configuration from .env
-    if config.sync_oracle_table:
-        st.sidebar.info(f"📋 설정된 테이블: {config.sync_oracle_table}")
-        st.sidebar.text(f"Primary Key: {config.sync_primary_key}")
-        st.sidebar.text(f"시간 컬럼: {config.sync_time_column}")
-    else:
-        st.sidebar.warning("⚠️ .env 파일에 SYNC_ORACLE_TABLE이 설정되지 않았습니다.")
+    st.sidebar.info(f"📋 설정된 테이블: {config.sync_oracle_table}")
     
-    # Allow override with manual input
-    use_manual_config = st.sidebar.checkbox("수동 설정 사용", value=False)
-    
-    if use_manual_config:
-        table_name = st.sidebar.text_input("테이블명", value=config.sync_oracle_table, help="Oracle 원본 테이블명")
-        primary_key = st.sidebar.text_input("Primary Key", value=config.sync_primary_key, help="Primary key 컬럼명")
-        time_column = st.sidebar.text_input("시간 컬럼", value=config.sync_time_column, help="증분 동기화용 시간 컬럼명")
-    else:
-        # Use .env configuration
-        table_name = config.sync_oracle_table
-        primary_key = config.sync_primary_key
-        time_column = config.sync_time_column
+    # Use .env configuration
+    table_name = config.sync_oracle_table
+    primary_key = config.sync_primary_key
+    time_column = config.sync_time_column
     
     # Test sync button with row limit
     st.sidebar.markdown("---")
     st.sidebar.subheader("🧪 테스트 동기화")
     test_row_limit = st.sidebar.number_input(
         "테스트 행 수", 
-        min_value=1000, 
-        max_value=10000, 
-        value=10000, 
-        step=1000,
-        help="테스트로 가져올 최대 행 수 (기본: 1만)"
+        min_value=10000, 
+        max_value=100000, 
+        value=100000, 
+        step=10000,
+        help="테스트로 가져올 최대 행 수 (기본: 10만)"
     )
     
     # Check if sync is running and update progress
@@ -183,22 +175,9 @@ def main():
                 # Acquire lock
                 if sync_lock.acquire(timeout=1):
                     try:
-                        # Use duckdb table name from config or convert to lowercase
-                        if config.sync_duckdb_table:
-                            duckdb_table = config.sync_duckdb_table
-                        else:
-                            table_parts = table_name.split('.')
-                            duckdb_table = table_parts[-1].lower()
-                        
-                        # Add _test suffix to avoid overwriting production table
-                        test_table = f"{duckdb_table}_test"
-                        
                         # Prepare sync parameters
                         sync_params = {
                             'sync_type': 'test',
-                            'oracle_table': table_name,
-                            'duckdb_table': test_table,
-                            'primary_key': primary_key,
                             'row_limit': test_row_limit
                         }
                         
@@ -325,8 +304,6 @@ def main():
         # Remove schema prefix and convert to lowercase
         oracle_table_parts = config.sync_oracle_table.split('.')
         base_table = oracle_table_parts[-1].lower()  # Get last part (table name) and lowercase
-        # Add _test suffix for test sync tables
-        default_table = f"{base_table}_test"
     else:
         default_table = table_list[0] if table_list else "sync_table"
     

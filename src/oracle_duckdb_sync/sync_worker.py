@@ -20,14 +20,6 @@ class SyncWorker:
         
         Args:
             config: Configuration object
-            sync_params: Dictionary with sync parameters:
-                - sync_type: 'test', 'full', or 'incremental'
-                - oracle_table: Source table name
-                - duckdb_table: Target table name
-                - primary_key: Primary key column
-                - row_limit: (optional) Row limit for test sync
-                - time_column: (optional) Time column for incremental sync
-                - last_value: (optional) Last sync value for incremental sync
             progress_queue: Optional queue.Queue for progress messages
         """
         self.config = config
@@ -65,9 +57,9 @@ class SyncWorker:
             
             # Determine sync type and execute
             sync_type = self.sync_params.get('sync_type', 'test')
-            oracle_table = self.sync_params['oracle_table']
-            duckdb_table = self.sync_params['duckdb_table']
-            primary_key = self.sync_params['primary_key']
+            oracle_table = self.config.sync_oracle_table
+            duckdb_table = self.config.sync_duckdb_table
+            primary_key = self.config.sync_primary_key
             
             # Note: We need to modify sync methods to accept progress_callback
             # For now, we'll use a wrapper approach with monkey patching

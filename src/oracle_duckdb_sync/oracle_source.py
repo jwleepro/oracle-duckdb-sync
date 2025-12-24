@@ -16,8 +16,11 @@ def _ensure_oracle_client():
     global _oracle_client_initialized
     if not _oracle_client_initialized:
         try:
-            # Oracle Instant Client 경로
-            lib_dir = os.environ.get('ORACLE_HOME') or r'D:\instantclient_23_0'
+            # Oracle Home 경로
+            oracle_home = os.environ.get('ORACLE_HOME')
+            if not oracle_home:
+                raise ValueError("ORACLE_HOME 환경 변수가 설정되지 않았습니다.")
+            lib_dir = os.path.join(oracle_home, 'bin')
             
             # TNS_ADMIN이 설정되어 있으면 해당 디렉토리를 사용
             config_dir = os.environ.get('TNS_ADMIN')
@@ -65,20 +68,38 @@ class OracleSource:
             oracledb.Connection: Oracle 연결 객체
         """
         try:
-            # Oracle 11g를 위해 Thick 모드 초기화
+            # Oracle 11.2를 위해 Thick 모드 초기화
             _ensure_oracle_client()
-
-            # 연결 생성 (예전 코드 스타일 참고)
+            
+            # DSN 연결 문자열 생성
+            dsn = f"{self.config.oracle_host}:{self.config.oracle_port}/{self.config.oracle_service_name}"
+            
+            self.logger.info(f"Attempting connection to Oracle (Thick mode): {dsn}")
+            self.logger.info(f"User: {self.config.oracle_user}")
+            
+            # Thick 모드로 연결 (Oracle 11.2 지원)
+            # sqlnet.ora 파일 수정으로 ORA-12638 오류 해결됨
             self.conn = oracledb.connect(
-                host=self.config.oracle_host,
-                port=self.config.oracle_port,
-                service_name=self.config.oracle_service_name,
                 user=self.config.oracle_user,
-                password=self.config.oracle_password
+                password=self.config.oracle_password,
+                dsn=dsn
             )
+            
+            self.logger.info("Successfully connected to Oracle database")
             return self.conn
+                
         except oracledb.DatabaseError as e:
-            self.logger.error(f"Failed to connect to Oracle: {e}")
+            error_obj, = e.args
+            self.logger.error(f"Oracle Database Error: {error_obj.code} - {error_obj.message}")
+            self.logger.error(f"Connection details - DSN: {dsn}, User: {self.config.oracle_user}")
+            
+            # ORA-12638 특정 오류에 대한 추가 정보 제공
+            if error_obj.code == 12638:
+                self.logger.error("ORA-12638: Credential retrieval failed")
+                self.logger.error("가능한 해결 방법:")
+                self.logger.error("1. sqlnet.ora 파일에서 SQLNET.AUTHENTICATION_SERVICES 설정 확인")
+                self.logger.error("2. SQLNET.AUTHENTICATION_SERVICES=(NONE) 또는 제거")
+                self.logger.error("3. Oracle 서버의 인증 설정 확인")
             raise
         except Exception as e:
             self.logger.error(f"Unexpected error during Oracle connection: {e}")

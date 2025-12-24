@@ -13,7 +13,7 @@ class SyncLock:
     sync operation runs at a time, even across multiple Streamlit sessions.
     """
     
-    def __init__(self, lock_file='./data/sync.lock'):
+    def __init__(self, lock_file=os.getenv('DUCKDB_LOCK_FILE', './data/sync.lock')):
         """Initialize SyncLock
         
         Args:

@@ -1,11 +1,16 @@
 import duckdb
+from pathlib import Path
 from oracle_duckdb_sync.config import Config
 
 
 class DuckDBSource:
     def __init__(self, config: Config):
         self.config = config
-        self.conn = None  # Initialize to None first
+        
+        # Ensure parent directory exists for DuckDB file
+        db_path = Path(self.config.duckdb_path)
+        db_path.parent.mkdir(parents=True, exist_ok=True)
+        
         self.conn = duckdb.connect(self.config.duckdb_path)
 
     def disconnect(self):

@@ -14,6 +14,7 @@ class Config:
     duckdb_database: str = "main"
     
     # Sync target table configuration
+    sync_oracle_schema: str = ""
     sync_oracle_table: str = ""
     sync_duckdb_table: str = ""
     sync_primary_key: str = "ID"
@@ -48,10 +49,8 @@ def load_config() -> Config:
     sync_duckdb_table = os.getenv("SYNC_DUCKDB_TABLE", "")
     
     # If duckdb table not specified, use oracle table name in lowercase without schema
-    if sync_oracle_table and not sync_duckdb_table:
-        # Remove schema prefix (e.g., "SCHEMA.TABLE" → "table")
-        table_parts = sync_oracle_table.split('.')
-        sync_duckdb_table = table_parts[-1].lower()
+    if not sync_duckdb_table:
+        raise ValueError("SYNC_DUCKDB_TABLE must be specified in .env file")
 
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
@@ -63,6 +62,7 @@ def load_config() -> Config:
         duckdb_path=os.getenv("DUCKDB_PATH"),
         duckdb_database=os.getenv("DUCKDB_DATABASE", "main"),
         
+        sync_oracle_schema=os.getenv("SYNC_ORACLE_SCHEMA", ""),
         sync_oracle_table=sync_oracle_table,
         sync_duckdb_table=sync_duckdb_table,
         sync_primary_key=os.getenv("SYNC_PRIMARY_KEY", "ID"),
