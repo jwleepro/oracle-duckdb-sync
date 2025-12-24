@@ -106,7 +106,7 @@ class SyncEngine:
         self.logger.info(f"Starting full sync from {oracle_table} to {duckdb_table}")
         return self.sync_in_batches(oracle_table, duckdb_table)
 
-    def test_sync(self, oracle_table: str, duckdb_table: str, primary_key: str, row_limit: int = 100000):
+    def test_sync(self, oracle_table: str, duckdb_table: str, primary_key: str, row_limit: int = None):
         """Perform test synchronization with limited rows from Oracle to DuckDB
         
         This is useful for testing the sync process with a large dataset before
@@ -146,14 +146,18 @@ class SyncEngine:
         self.duckdb.execute(create_ddl)
         
         # Step 4: Sync limited data with proper row limit enforcement
+        if row_limit is None:
+            row_limit = self.config.test_sync_default_row_limit
         self.logger.info(f"Starting test sync from {oracle_table} to {duckdb_table} (limit: {row_limit} rows)")
-        return self._execute_limited_sync(oracle_table, duckdb_table, row_limit, duckdb_columns, batch_size=10000)
+        return self._execute_limited_sync(oracle_table, duckdb_table, row_limit, duckdb_columns, batch_size=self.config.sync_batch_size)
 
-    def incremental_sync(self, oracle_table: str, duckdb_table: str, column: str, last_value: str, retries: int = 3):
+    def incremental_sync(self, oracle_table: str, duckdb_table: str, column: str, last_value: str, retries: int = None):
         # Ensure Oracle connection is established
         if not self.oracle.conn:
             self.oracle.connect()
         
+        if retries is None:
+            retries = self.config.sync_retry_attempts
         query = self.oracle.build_incremental_query(oracle_table, column, last_value)
         last_exception = None
         for attempt in range(retries):
@@ -162,15 +166,23 @@ class SyncEngine:
             except Exception as e:
                 last_exception = e
                 if attempt < retries - 1:
-                    time.sleep(0.1)
+                    time.sleep(self.config.sync_retry_delay_seconds)
                     continue
         raise last_exception
 
-    def sync_in_batches(self, oracle_table: str, duckdb_table: str, batch_size: int = 10000, max_duration: int = 3600):
+    def sync_in_batches(self, oracle_table: str, duckdb_table: str, batch_size: int = None, max_duration: int = None):
+        if batch_size is None:
+            batch_size = self.config.sync_batch_size
+        if max_duration is None:
+            max_duration = self.config.sync_max_duration_seconds
         query = f"SELECT * FROM {oracle_table}"
         return self._execute_sync(query, duckdb_table, batch_size, max_duration)
 
-    def _execute_sync(self, query: str, duckdb_table: str, batch_size: int = 10000, max_duration: int = 3600):
+    def _execute_sync(self, query: str, duckdb_table: str, batch_size: int = None, max_duration: int = None):
+        if batch_size is None:
+            batch_size = self.config.sync_batch_size
+        if max_duration is None:
+            max_duration = self.config.sync_max_duration_seconds
         self.duckdb.ensure_database()
         
         # Check if target table exists
@@ -396,7 +408,7 @@ class SyncEngine:
         # Oracle requires subquery for proper ROWNUM limiting
         return f"SELECT * FROM (SELECT * FROM {oracle_table}) WHERE ROWNUM <= {row_limit}"
 
-    def _execute_limited_sync(self, oracle_table: str, duckdb_table: str, row_limit: int, duckdb_columns: list, batch_size: int = 10000, max_duration: int = 3600):
+    def _execute_limited_sync(self, oracle_table: str, duckdb_table: str, row_limit: int, duckdb_columns: list, batch_size: int = None, max_duration: int = None):
         """Execute sync with strict row limit enforcement
         
         Args:
@@ -410,6 +422,10 @@ class SyncEngine:
         Returns:
             int: Total number of rows synchronized
         """
+        if batch_size is None:
+            batch_size = self.config.sync_batch_size
+        if max_duration is None:
+            max_duration = self.config.sync_max_duration_seconds
         self._validate_sync_preconditions(duckdb_table)
         
         self.logger.info(f"=" * 80)
@@ -455,8 +471,10 @@ class SyncEngine:
             f"Sync progress - Table: {table}, Total rows: {total_count}, Batch size: {batch_count}"
         )
 
-    def save_state(self, table_name: str, last_value: str, file_path: str = "sync_state.json"):
+    def save_state(self, table_name: str, last_value: str, file_path: str = None):
         """Save sync state for a table using StateFileManager"""
+        if file_path is None:
+            file_path = self.config.sync_state_path
         # Load existing state
         state = self.state_manager.load_json(file_path, default_data={})
         
@@ -466,13 +484,15 @@ class SyncEngine:
         # Save updated state
         self.state_manager.save_json(file_path, state)
 
-    def load_state(self, table_name: str, file_path: str = "sync_state.json") -> str:
+    def load_state(self, table_name: str, file_path: str = None) -> str:
         """Load sync state for a table using StateFileManager"""
+        if file_path is None:
+            file_path = self.config.sync_state_path
         state = self.state_manager.load_json(file_path, default_data={})
         return state.get(table_name)
 
 
-    def save_schema_mapping(self, table_name: str, schema: dict, version: str, file_path: str = "schema_mappings.json"):
+    def save_schema_mapping(self, table_name: str, schema: dict, version: str, file_path: str = None):
         """Save schema mapping configuration with version tracking
         
         Args:
@@ -481,6 +501,8 @@ class SyncEngine:
             version: Version string (e.g., "1.0", "2.0")
             file_path: Path to the schema mappings file
         """
+        if file_path is None:
+            file_path = self.config.schema_mapping_path
         # Load existing mappings
         mappings = self.state_manager.load_json(file_path, default_data={})
         
@@ -501,7 +523,7 @@ class SyncEngine:
         # Write to file
         self.state_manager.save_json(file_path, mappings)
 
-    def load_schema_mapping(self, table_name: str, version: str = None, file_path: str = "schema_mappings.json") -> dict:
+    def load_schema_mapping(self, table_name: str, version: str = None, file_path: str = None) -> dict:
         """Load schema mapping configuration
         
         Args:
@@ -512,6 +534,8 @@ class SyncEngine:
         Returns:
             dict: Schema mapping with version info, or None if not found
         """
+        if file_path is None:
+            file_path = self.config.schema_mapping_path
         # Load mappings using StateFileManager
         mappings = self.state_manager.load_json(file_path, default_data={})
         
@@ -540,7 +564,7 @@ class SyncEngine:
             "timestamp": version_data.get("timestamp")
         }
 
-    def get_schema_versions(self, table_name: str, file_path: str = "schema_mappings.json") -> list:
+    def get_schema_versions(self, table_name: str, file_path: str = None) -> list:
         """Get list of all versions for a table's schema mapping
         
         Args:
@@ -550,6 +574,8 @@ class SyncEngine:
         Returns:
             list: List of version strings, or empty list if not found
         """
+        if file_path is None:
+            file_path = self.config.schema_mapping_path
         mappings = self.state_manager.load_json(file_path, default_data={})
         
         if table_name not in mappings:
@@ -559,7 +585,7 @@ class SyncEngine:
         return versions
 
 
-    def create_state_checkpoint(self, file_path: str = "sync_state.json") -> dict:
+    def create_state_checkpoint(self, file_path: str = None) -> dict:
         """Create a checkpoint snapshot of current sync state
         
         Args:
@@ -568,11 +594,13 @@ class SyncEngine:
         Returns:
             dict: Copy of current state, or empty dict if file doesn't exist
         """
+        if file_path is None:
+            file_path = self.config.sync_state_path
         state = self.state_manager.load_json(file_path, default_data={})
         # Return a deep copy to prevent modification
         return dict(state)
 
-    def rollback_state(self, checkpoint: dict, file_path: str = "sync_state.json") -> bool:
+    def rollback_state(self, checkpoint: dict, file_path: str = None) -> bool:
         """Rollback sync state to a previous checkpoint
         
         Args:
@@ -582,10 +610,12 @@ class SyncEngine:
         Returns:
             bool: True if rollback succeeded, False otherwise
         """
+        if file_path is None:
+            file_path = self.config.sync_state_path
         return self.state_manager.save_json(file_path, checkpoint)
 
     def save_partial_progress(self, table_name: str, rows_processed: int, last_row_id: int, 
-                             file_path: str = "sync_progress.json"):
+                             file_path: str = None):
         """Save partial progress during sync operation
         
         Args:
@@ -594,6 +624,8 @@ class SyncEngine:
             last_row_id: ID of the last row processed
             file_path: Path to the progress file
         """
+        if file_path is None:
+            file_path = self.config.sync_progress_path
         # Load existing progress
         progress = self.state_manager.load_json(file_path, default_data={})
         
@@ -607,7 +639,7 @@ class SyncEngine:
         # Save updated progress
         self.state_manager.save_json(file_path, progress)
 
-    def load_partial_progress(self, table_name: str, file_path: str = "sync_progress.json") -> dict:
+    def load_partial_progress(self, table_name: str, file_path: str = None) -> dict:
         """Load partial progress for a table
         
         Args:
@@ -617,16 +649,20 @@ class SyncEngine:
         Returns:
             dict: Progress info with rows_processed, last_row_id, timestamp, or None
         """
+        if file_path is None:
+            file_path = self.config.sync_progress_path
         progress = self.state_manager.load_json(file_path, default_data={})
         return progress.get(table_name)
 
-    def clear_partial_progress(self, table_name: str, file_path: str = "sync_progress.json"):
+    def clear_partial_progress(self, table_name: str, file_path: str = None):
         """Clear partial progress for a table after successful completion
         
         Args:
             table_name: Name of the table
             file_path: Path to the progress file
         """
+        if file_path is None:
+            file_path = self.config.sync_progress_path
         # Load existing progress
         progress = self.state_manager.load_json(file_path, default_data={})
         

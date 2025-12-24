@@ -20,8 +20,43 @@ class Config:
     sync_primary_key: str = "ID"
     sync_time_column: str = "TIMESTAMP_COL"
 
-def load_config() -> Config:
-    load_dotenv()
+    # Sync performance settings
+    sync_batch_size: int = 10000
+    oracle_fetch_batch_size: int = 1000
+    sync_max_duration_seconds: int = 3600
+    test_sync_default_row_limit: int = 100000
+
+    # Progress reporting
+    progress_refresh_interval_seconds: float = 0.5
+
+    # Type detection threshold
+    type_detection_threshold: float = 0.9
+
+    # Retry settings
+    sync_retry_attempts: int = 3
+    sync_retry_delay_seconds: float = 0.1
+
+    # State file paths
+    state_directory: str = "./data"
+    sync_state_file: str = "sync_state.json"
+    schema_mapping_file: str = "schema_mappings.json"
+    sync_progress_file: str = "sync_progress.json"
+
+    @property
+    def sync_state_path(self) -> str:
+        return os.path.join(self.state_directory, self.sync_state_file)
+
+    @property
+    def schema_mapping_path(self) -> str:
+        return os.path.join(self.state_directory, self.schema_mapping_file)
+
+    @property
+    def sync_progress_path(self) -> str:
+        return os.path.join(self.state_directory, self.sync_progress_file)
+
+def load_config(load_dotenv_file: bool = True) -> Config:
+    if load_dotenv_file:
+        load_dotenv()
 
     # 필수 변수 (호스트, 계정 정보 등)
     required_vars = [
@@ -49,8 +84,8 @@ def load_config() -> Config:
     sync_duckdb_table = os.getenv("SYNC_DUCKDB_TABLE", "")
     
     # If duckdb table not specified, use oracle table name in lowercase without schema
-    if not sync_duckdb_table:
-        raise ValueError("SYNC_DUCKDB_TABLE must be specified in .env file")
+    if not sync_duckdb_table and sync_oracle_table:
+        sync_duckdb_table = sync_oracle_table.lower()
 
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
@@ -66,5 +101,27 @@ def load_config() -> Config:
         sync_oracle_table=sync_oracle_table,
         sync_duckdb_table=sync_duckdb_table,
         sync_primary_key=os.getenv("SYNC_PRIMARY_KEY", "ID"),
-        sync_time_column=os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL")
+        sync_time_column=os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL"),
+
+        # Performance settings
+        sync_batch_size=int(os.getenv("SYNC_BATCH_SIZE", "10000")),
+        oracle_fetch_batch_size=int(os.getenv("ORACLE_FETCH_BATCH_SIZE", "1000")),
+        sync_max_duration_seconds=int(os.getenv("SYNC_MAX_DURATION_SECONDS", "3600")),
+        test_sync_default_row_limit=int(os.getenv("TEST_SYNC_DEFAULT_ROW_LIMIT", "100000")),
+
+        # Progress reporting
+        progress_refresh_interval_seconds=float(os.getenv("PROGRESS_REFRESH_INTERVAL_SECONDS", "0.5")),
+
+        # Type detection
+        type_detection_threshold=float(os.getenv("TYPE_DETECTION_THRESHOLD", "0.9")),
+
+        # Retry settings
+        sync_retry_attempts=int(os.getenv("SYNC_RETRY_ATTEMPTS", "3")),
+        sync_retry_delay_seconds=float(os.getenv("SYNC_RETRY_DELAY_SECONDS", "0.1")),
+
+        # State file paths
+        state_directory=os.getenv("STATE_DIRECTORY", "./data"),
+        sync_state_file=os.getenv("SYNC_STATE_FILE", "sync_state.json"),
+        schema_mapping_file=os.getenv("SCHEMA_MAPPING_FILE", "schema_mappings.json"),
+        sync_progress_file=os.getenv("SYNC_PROGRESS_FILE", "sync_progress.json")
     )
