@@ -178,3 +178,76 @@ def handle_retry_sync():
     st.session_state.sync_worker = None
     st.session_state.sync_error = {}
     st.rerun()
+
+
+def render_running_status():
+    """
+    동기화 실행 중 상태 UI 렌더링
+    """
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("🔄 동기화 진행 중")
+    
+    if st.session_state.sync_progress:
+        progress = st.session_state.sync_progress
+        
+        # Progress bar (if percentage available)
+        if progress.get('percentage', 0) > 0:
+            st.sidebar.progress(min(progress['percentage'], 1.0))
+        
+        # Statistics
+        col1, col2 = st.sidebar.columns(2)
+        col1.metric("처리된 행", f"{progress.get('total_rows', 0):,}")
+        col2.metric("처리 속도", f"{progress.get('rows_per_second', 0):.0f} rows/s")
+        
+        # Elapsed time
+        elapsed = progress.get('elapsed_time', 0)
+        st.sidebar.text(f"⏱️ 경과 시간: {elapsed:.0f}초")
+        
+        # ETA
+        if progress.get('eta'):
+            st.sidebar.text(f"⏰ 예상 완료: {progress['eta']}")
+    else:
+        st.sidebar.info("동기화 시작 중...")
+
+
+def render_completed_status():
+    """
+    동기화 완료 상태 UI 렌더링
+    """
+    st.sidebar.success("✅ 동기화 완료!")
+    if st.session_state.sync_result:
+        result = st.session_state.sync_result
+        st.sidebar.info(f"총 {result.get('total_rows', 0):,} 행 처리됨")
+    
+    # Reset button
+    if st.sidebar.button("새 동기화 시작"):
+        handle_reset_sync()
+
+
+def render_error_status():
+    """
+    동기화 에러 상태 UI 렌더링
+    """
+    st.sidebar.error("❌ 동기화 실패")
+    if st.session_state.sync_error:
+        error = st.session_state.sync_error
+        st.sidebar.text(f"에러: {error.get('exception', 'Unknown error')}")
+        
+        with st.sidebar.expander("상세 에러 정보"):
+            st.code(error.get('traceback', ''))
+    
+    # Reset button
+    if st.sidebar.button("다시 시도"):
+        handle_retry_sync()
+
+
+def render_sync_status_ui():
+    """
+    현재 동기화 상태에 따라 적절한 UI를 렌더링
+    """
+    if st.session_state.sync_status == 'running':
+        render_running_status()
+    elif st.session_state.sync_status == 'completed':
+        render_completed_status()
+    elif st.session_state.sync_status == 'error':
+        render_error_status()
