@@ -9,6 +9,12 @@ from oracle_duckdb_sync.sync_worker import SyncWorker
 from oracle_duckdb_sync.sync_state import SyncLock
 from oracle_duckdb_sync.logger import setup_logger
 from oracle_duckdb_sync.data_converter import detect_and_convert_types
+from oracle_duckdb_sync.ui_handlers import (
+    handle_test_sync,
+    handle_full_sync,
+    handle_reset_sync,
+    handle_retry_sync
+)
 
 # Set up logger for app.py
 app_logger = setup_logger('StreamlitApp')
@@ -137,11 +143,7 @@ def main():
         
         # Reset button
         if st.sidebar.button("새 동기화 시작"):
-            st.session_state.sync_status = 'idle'
-            st.session_state.sync_worker = None
-            st.session_state.sync_progress = {}
-            st.session_state.sync_result = {}
-            st.rerun()
+            handle_reset_sync()
     
     # Display error status
     elif st.session_state.sync_status == 'error':
@@ -155,51 +157,12 @@ def main():
         
         # Reset button
         if st.sidebar.button("다시 시도"):
-            st.session_state.sync_status = 'idle'
-            st.session_state.sync_worker = None
-            st.session_state.sync_error = {}
-            st.rerun()
+            handle_retry_sync()
     
     # Test sync button - only enabled when idle
     if st.sidebar.button("🧪 테스트 동기화 실행 (제한된 행)", 
                          disabled=(st.session_state.sync_status == 'running')):
-        if not table_name:
-            st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
-        else:
-            # Check if another sync is running
-            sync_lock = SyncLock()
-            if sync_lock.is_locked():
-                lock_info = sync_lock.get_lock_info()
-                st.sidebar.warning(f"⚠️ 다른 동기화 작업이 실행 중입니다. (PID: {lock_info.get('pid', 'unknown')})")
-            else:
-                # Acquire lock
-                if sync_lock.acquire(timeout=1):
-                    try:
-                        # Prepare sync parameters
-                        sync_params = {
-                            'sync_type': 'test',
-                            'row_limit': test_row_limit
-                        }
-                        
-                        # Create and start worker
-                        worker = SyncWorker(config, sync_params, st.session_state.progress_queue)
-                        worker.expected_rows = test_row_limit  # For ETA calculation
-                        worker.start()
-                        
-                        st.session_state.sync_worker = worker
-                        st.session_state.sync_status = 'running'
-                        st.session_state.sync_progress = {}
-                        st.session_state.sync_lock = sync_lock
-                        st.rerun()
-                        
-                    except Exception as e:
-                        import traceback
-                        sync_lock.release()
-                        st.sidebar.error(f"❌ 동기화 시작 실패: {e}")
-                        with st.sidebar.expander("상세 에러 정보"):
-                            st.code(traceback.format_exc())
-                else:
-                    st.sidebar.error("❌ 동기화 잠금을 획득할 수 없습니다.")
+        handle_test_sync(config, test_row_limit, table_name)
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("🚀 전체 동기화")
@@ -207,73 +170,7 @@ def main():
     
     if st.sidebar.button("🚀 전체 동기화 실행", 
                          disabled=(st.session_state.sync_status == 'running')):
-        if not table_name:
-            st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
-        else:
-            # Check if another sync is running
-            sync_lock = SyncLock()
-            if sync_lock.is_locked():
-                lock_info = sync_lock.get_lock_info()
-                st.sidebar.warning(f"⚠️ 다른 동기화 작업이 실행 중입니다. (PID: {lock_info.get('pid', 'unknown')})")
-            else:
-                # Acquire lock
-                if sync_lock.acquire(timeout=1):
-                    try:
-                        # Use duckdb table name from config or convert to lowercase
-                        if config.sync_duckdb_table:
-                            duckdb_table = config.sync_duckdb_table
-                        else:
-                            table_parts = table_name.split('.')
-                            duckdb_table = table_parts[-1].lower()
-                        
-                        # Check if table exists in DuckDB to determine sync type
-                        if not duckdb.table_exists(duckdb_table):
-                            # First time sync - perform full sync
-                            sync_params = {
-                                'sync_type': 'full',
-                                'oracle_table': table_name,
-                                'duckdb_table': duckdb_table,
-                                'primary_key': primary_key
-                            }
-                        else:
-                            # Incremental sync
-                            from oracle_duckdb_sync.sync_engine import SyncEngine
-                            sync_engine = SyncEngine(config)
-                            
-                            # Load last sync time
-                            last_sync_time = sync_engine.load_state(table_name)
-                            if not last_sync_time:
-                                last_sync_time = "2020-01-01 00:00:00"
-                            
-                            # Get first column from time_column (could be composite)
-                            time_col = time_column.split(',')[0].strip() if time_column else "TIMESTAMP_COL"
-                            
-                            sync_params = {
-                                'sync_type': 'incremental',
-                                'oracle_table': table_name,
-                                'duckdb_table': duckdb_table,
-                                'time_column': time_col,
-                                'last_value': last_sync_time
-                            }
-                        
-                        # Create and start worker
-                        worker = SyncWorker(config, sync_params, st.session_state.progress_queue)
-                        worker.start()
-                        
-                        st.session_state.sync_worker = worker
-                        st.session_state.sync_status = 'running'
-                        st.session_state.sync_progress = {}
-                        st.session_state.sync_lock = sync_lock
-                        st.rerun()
-                        
-                    except Exception as e:
-                        import traceback
-                        sync_lock.release()
-                        st.sidebar.error(f"❌ 동기화 시작 실패: {e}")
-                        with st.sidebar.expander("상세 에러 정보"):
-                            st.code(traceback.format_exc())
-                else:
-                    st.sidebar.error("❌ 동기화 잠금을 획득할 수 없습니다.")
+        handle_full_sync(config, table_name, primary_key, time_column, duckdb)
 
     st.subheader("데이터 조회")
     

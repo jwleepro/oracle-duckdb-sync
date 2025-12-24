@@ -74,6 +74,7 @@ env/
 # Database
 *.duckdb
 *.duckdb.wal
+*.lock
 *.db
 *.sqlite
 *.sqlite3
