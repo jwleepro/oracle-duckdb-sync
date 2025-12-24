@@ -10,7 +10,9 @@ from oracle_duckdb_sync.data_converter import (
     is_datetime_string,
     convert_to_datetime,
     convert_to_numeric,
-    detect_and_convert_types
+    detect_and_convert_types,
+    detect_column_type,
+    convert_column_to_type
 )
 
 
@@ -154,6 +156,97 @@ class TestNumericConversion:
         assert result is not None
         assert pd.api.types.is_numeric_dtype(result)
         assert pd.isna(result[1])
+
+
+class TestDetectColumnType:
+    """Tests for detect_column_type function."""
+    
+    def test_detect_numeric_type(self):
+        """Test detection of numeric type."""
+        from oracle_duckdb_sync.data_converter import detect_column_type
+        
+        series = pd.Series(['123', '456', '789'])
+        result = detect_column_type(series)
+        
+        assert result == 'numeric'
+    
+    def test_detect_datetime_type(self):
+        """Test detection of datetime type."""
+        from oracle_duckdb_sync.data_converter import detect_column_type
+        
+        series = pd.Series(['20231219153045', '20240101120000', '20231231235959'])
+        result = detect_column_type(series)
+        
+        assert result == 'datetime'
+    
+    def test_detect_string_type(self):
+        """Test detection of string type."""
+        from oracle_duckdb_sync.data_converter import detect_column_type
+        
+        series = pd.Series(['Alice', 'Bob', 'Charlie'])
+        result = detect_column_type(series)
+        
+        assert result == 'string'
+    
+    def test_datetime_takes_precedence_over_numeric(self):
+        """Test that datetime detection takes precedence over numeric."""
+        from oracle_duckdb_sync.data_converter import detect_column_type
+        
+        # 8-digit numbers that could be dates
+        series = pd.Series(['20231219', '20240101', '20231231'])
+        result = detect_column_type(series)
+        
+        # Should be detected as datetime, not numeric
+        assert result == 'datetime'
+    
+    def test_custom_threshold(self):
+        """Test detection with custom threshold."""
+        from oracle_duckdb_sync.data_converter import detect_column_type
+        
+        # 80% numeric
+        series = pd.Series(['123', '456', '789', 'abc', '999'])
+        
+        # Should fail with default 0.9 threshold
+        result_default = detect_column_type(series)
+        assert result_default == 'string'
+        
+        # Should succeed with 0.7 threshold
+        result_custom = detect_column_type(series, threshold=0.7)
+        assert result_custom == 'numeric'
+
+
+class TestConvertColumnToType:
+    """Tests for convert_column_to_type function."""
+    
+    def test_convert_to_numeric_type(self):
+        """Test conversion to numeric type."""
+        from oracle_duckdb_sync.data_converter import convert_column_to_type
+        
+        series = pd.Series(['123', '456', '789'])
+        result = convert_column_to_type(series, 'numeric')
+        
+        assert pd.api.types.is_numeric_dtype(result)
+        assert result[0] == 123
+    
+    def test_convert_to_datetime_type(self):
+        """Test conversion to datetime type."""
+        from oracle_duckdb_sync.data_converter import convert_column_to_type
+        
+        series = pd.Series(['20231219153045', '20240101120000'])
+        result = convert_column_to_type(series, 'datetime')
+        
+        assert pd.api.types.is_datetime64_any_dtype(result)
+        assert result[0] == pd.Timestamp('2023-12-19 15:30:45')
+    
+    def test_convert_to_string_type_unchanged(self):
+        """Test that string type returns unchanged."""
+        from oracle_duckdb_sync.data_converter import convert_column_to_type
+        
+        series = pd.Series(['Alice', 'Bob', 'Charlie'])
+        result = convert_column_to_type(series, 'string')
+        
+        assert result.dtype == 'object'
+        assert result.equals(series)
 
 
 class TestDetectAndConvertTypes:

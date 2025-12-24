@@ -49,6 +49,32 @@ def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) 
     return y_axis_min, y_axis_max
 
 
+def _detect_datetime_columns(df: pd.DataFrame) -> list:
+    """
+    Detect datetime columns in DataFrame.
+    
+    Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        List of datetime column names
+    """
+    return df.select_dtypes(include=['datetime64']).columns.tolist()
+
+
+def _detect_numeric_columns(df: pd.DataFrame) -> list:
+    """
+    Detect numeric columns in DataFrame.
+    
+    Args:
+        df: DataFrame to analyze
+        
+    Returns:
+        List of numeric column names
+    """
+    return df.select_dtypes(include=['number']).columns.tolist()
+
+
 def render_data_visualization(df: pd.DataFrame, table_name: str):
     """
     Render interactive data visualization with Plotly charts.
@@ -62,9 +88,9 @@ def render_data_visualization(df: pd.DataFrame, table_name: str):
     
     st.subheader("시각화")
     
-    # Select only numeric and datetime columns for visualization
-    numeric_cols = df.select_dtypes(include=['number']).columns.tolist()
-    datetime_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
+    # Detect visualizable columns
+    numeric_cols = _detect_numeric_columns(df)
+    datetime_cols = _detect_datetime_columns(df)
     
     if not numeric_cols and not datetime_cols:
         st.info("시각화할 숫자형 또는 날짜형 컬럼이 없습니다. VARCHAR2 컬럼의 내용이 숫자나 날짜 형식이 아닐 수 있습니다.")
@@ -113,12 +139,46 @@ def render_data_visualization(df: pd.DataFrame, table_name: str):
         st.info("💡 차트에 표시할 Y축 컬럼을 선택하세요.")
         return
     
-    # Create a copy for plotting to avoid modifying original data
-    df_plot = df.copy()
+    # Prepare and display chart
+    _create_and_display_chart(df, x_col, y_cols, numeric_cols, table_name)
+
+
+def _prepare_plot_dataframe(df: pd.DataFrame, numeric_cols: list) -> pd.DataFrame:
+    """
+    Prepare DataFrame for plotting by converting numeric columns to float64.
     
-    # Convert all numeric columns to float64 to avoid Plotly mixed-type error
+    Args:
+        df: Original DataFrame
+        numeric_cols: List of numeric column names
+        
+    Returns:
+        Copy of DataFrame with numeric columns as float64
+    """
+    df_plot = df.copy()
     for col in numeric_cols:
         df_plot[col] = df_plot[col].astype('float64')
+    return df_plot
+
+
+def _create_and_display_chart(
+    df: pd.DataFrame,
+    x_col: str,
+    y_cols: list,
+    numeric_cols: list,
+    table_name: str
+):
+    """
+    Create and display Plotly chart.
+    
+    Args:
+        df: DataFrame to visualize
+        x_col: X-axis column name (can be None for index-based x-axis)
+        y_cols: List of Y-axis column names
+        numeric_cols: List of all numeric column names
+        table_name: Name of the table being visualized
+    """
+    # Prepare data
+    df_plot = _prepare_plot_dataframe(df, numeric_cols)
     
     try:
         # Calculate Y-axis range based on actual data BEFORE creating the chart
