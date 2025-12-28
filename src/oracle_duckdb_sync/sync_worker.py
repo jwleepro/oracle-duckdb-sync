@@ -57,7 +57,14 @@ class SyncWorker:
             
             # Determine sync type and execute
             sync_type = self.sync_params.get('sync_type', 'test')
+            
+            oracle_schema = self.config.sync_oracle_schema
             oracle_table = self.config.sync_oracle_table
+            oracle_table_name = ""
+            if oracle_schema:
+                oracle_table_name = f"{oracle_schema}.{oracle_table}"
+            else:
+                oracle_table_name = oracle_table
             duckdb_table = self.config.sync_duckdb_table
             primary_key = self.config.sync_primary_key
             
@@ -69,14 +76,14 @@ class SyncWorker:
             if sync_type == 'test':
                 row_limit = self.sync_params.get('row_limit', 10000)
                 self.total_rows = sync_engine.test_sync(
-                    oracle_table=oracle_table,
+                    oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,
                     primary_key=primary_key,
                     row_limit=row_limit
                 )
             elif sync_type == 'full':
                 self.total_rows = sync_engine.full_sync(
-                    oracle_table=oracle_table,
+                    oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,
                     primary_key=primary_key
                 )
@@ -84,7 +91,7 @@ class SyncWorker:
                 time_column = self.sync_params['time_column']
                 last_value = self.sync_params['last_value']
                 self.total_rows = sync_engine.incremental_sync(
-                    oracle_table=oracle_table,
+                    oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,
                     column=time_column,
                     last_value=last_value

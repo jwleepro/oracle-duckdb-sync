@@ -32,7 +32,7 @@ class SyncEngine:
     def __del__(self):
         self.close()
 
-    def full_sync(self, oracle_table: str, duckdb_table: str, primary_key: str):
+    def full_sync(self, oracle_table_name: str, duckdb_table: str, primary_key: str):
         """Perform full synchronization from Oracle to DuckDB
         
         Steps:
@@ -54,11 +54,11 @@ class SyncEngine:
             self.oracle.connect()
         
         # Step 1: Get Oracle table schema
-        self.logger.info(f"Getting schema for table {oracle_table}")
-        schema = self.oracle.get_table_schema(oracle_table)
+        self.logger.info(f"Getting schema for table {oracle_table_name}")
+        schema = self.oracle.get_table_schema(oracle_table_name)
         
         if not schema:
-            raise ValueError(f"Table {oracle_table} not found or has no columns")
+            raise ValueError(f"Table {oracle_table_name} not found or has no columns")
         
         # Step 2: Map Oracle types to DuckDB types
         duckdb_columns = []
@@ -76,10 +76,10 @@ class SyncEngine:
         self.duckdb.execute(create_ddl)
         
         # Step 4: Sync data
-        self.logger.info(f"Starting full sync from {oracle_table} to {duckdb_table}")
-        return self.sync_in_batches(oracle_table, duckdb_table)
+        self.logger.info(f"Starting full sync from {oracle_table_name} to {duckdb_table}")
+        return self.sync_in_batches(oracle_table_name, duckdb_table)
 
-    def test_sync(self, oracle_table: str, duckdb_table: str, primary_key: str, row_limit: int = 100000):
+    def test_sync(self, oracle_table_name: str, duckdb_table: str, primary_key: str, row_limit: int = 100000):
         """Perform test synchronization with limited rows from Oracle to DuckDB
         
         This is useful for testing the sync process with a large dataset before
@@ -106,11 +106,11 @@ class SyncEngine:
             self.oracle.connect()
         
         # Step 1: Get Oracle table schema
-        self.logger.info(f"Getting schema for table {oracle_table}")
-        schema = self.oracle.get_table_schema(oracle_table)
+        self.logger.info(f"Getting schema for table {oracle_table_name}")
+        schema = self.oracle.get_table_schema(oracle_table_name)
         
         if not schema:
-            raise ValueError(f"Table {oracle_table} not found or has no columns")
+            raise ValueError(f"Table {oracle_table_name} not found or has no columns")
         
         # Step 2: Map Oracle types to DuckDB types
         duckdb_columns = []
@@ -133,8 +133,8 @@ class SyncEngine:
         self.duckdb.execute(create_ddl)
         
         # Step 4: Sync limited data with proper row limit enforcement
-        self.logger.info(f"Starting test sync from {oracle_table} to {duckdb_table} (limit: {row_limit} rows)")
-        return self._execute_limited_sync(oracle_table, duckdb_table, row_limit, duckdb_columns, batch_size=10000)
+        self.logger.info(f"Starting test sync from {oracle_table_name} to {duckdb_table} (limit: {row_limit} rows)")
+        return self._execute_limited_sync(oracle_table_name, duckdb_table, row_limit, duckdb_columns, batch_size=10000)
 
     def incremental_sync(self, oracle_table: str, duckdb_table: str, column: str, last_value: str, retries: int = 3):
         # Ensure Oracle connection is established

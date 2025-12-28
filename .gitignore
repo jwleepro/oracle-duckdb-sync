@@ -56,7 +56,8 @@ env/
 .venv/
 
 # IDE files
-.vscode/
+#이 프로젝트에서 launch.json 설정하기 쉽지 않아 commit 허용
+!.vscode/launch.json
 .idea/
 *.swp
 *.swo
