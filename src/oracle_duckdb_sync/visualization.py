@@ -86,8 +86,6 @@ def render_data_visualization(df: pd.DataFrame, table_name: str):
     if df.empty:
         return
     
-    st.subheader("시각화")
-    
     # Detect visualizable columns
     numeric_cols = _detect_numeric_columns(df)
     datetime_cols = _detect_datetime_columns(df)

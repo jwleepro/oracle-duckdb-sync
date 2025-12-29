@@ -1,5 +1,6 @@
 import streamlit as st
 import time
+from oracle_duckdb_sync import visualization
 from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.logger import setup_logger
@@ -111,39 +112,38 @@ def main():
     if st.sidebar.button("🚀 전체 동기화 실행", 
                          disabled=(st.session_state.sync_status == 'running')):
         handle_full_sync(config, table_name, primary_key, time_column, duckdb)
-
-    st.subheader("데이터 조회")
-    
+        
+    #메인 화면
     # Show available tables in DuckDB
     table_list = get_available_tables(duckdb)
     
     # Determine default table name
-    default_table = determine_default_table_name(config, table_list)
+    default_table = determine_default_table_name(config, table_list)    
     
-    query_table_name = st.text_input("조회할 테이블명", value=default_table, help="DuckDB 테이블명 (소문자, 스키마 없이)")
-    
-    
-    if st.button("조회"):
-        # Query DuckDB table and cache result
-        result = query_duckdb_table(duckdb, query_table_name, limit=100)
-        
-        if result['success']:
-            st.session_state.query_result = result
-        else:
-            st.session_state.query_result = None
-    
+    duckdb_table_name = st.text_input("조회할 테이블명", value=default_table, help="DuckDB 테이블명 (소문자, 스키마 없이)")
+    # Query DuckDB table and cache result
+    duckdb_query_result = query_duckdb_table(duckdb, duckdb_table_name)    
+            
+    st.subheader("시각화")        
     # Display cached query result if available
-    if 'query_result' in st.session_state and st.session_state.query_result:
-        result = st.session_state.query_result
-        df_converted = result['df_converted']
-        query_table_name = result['table_name']
-        
-        # Show data
-        st.dataframe(df_converted)
+    if duckdb_query_result:
+        df_converted = duckdb_query_result['df_converted']
+        visualization_table_name = duckdb_query_result['table_name']
 
         # Render visualization
-        render_data_visualization(df_converted, query_table_name)
+        render_data_visualization(df_converted, visualization_table_name)        
 
+    st.subheader("데이터 조회")
+    
+    if st.button("조회"):
+        if duckdb_query_result['success']:
+            st.session_state.query_result = duckdb_query_result
+        
+            # Show data
+            st.dataframe(df_converted)
+                        
+        else:
+            st.session_state.query_result = None
 
 if __name__ == "__main__":
     main()
