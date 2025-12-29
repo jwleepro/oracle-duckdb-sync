@@ -27,7 +27,10 @@ def initialize_session_state():
         'sync_progress': {},
         'sync_result': {},
         'sync_error': {},
-        'sync_lock': None
+        'sync_lock': None,
+        'query_result': None,
+        'converted_data_cache': {},  # Cache for converted DataFrames by table
+        'cache_metadata': {}  # Metadata for each cached table (last_timestamp, row_count, etc.)
     }
     
     for key, value in defaults.items():

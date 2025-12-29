@@ -97,6 +97,12 @@ class TestCalculateYAxisRange:
 class TestRenderDataVisualization:
     """Tests for render_data_visualization function."""
 
+    def test_none_dataframe(self):
+        """Should handle None DataFrame gracefully."""
+        df = None
+        # Should not raise exception
+        render_data_visualization(df, "test_table")
+
     def test_empty_dataframe(self):
         """Should handle empty DataFrame gracefully."""
         df = pd.DataFrame()

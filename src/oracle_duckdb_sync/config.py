@@ -22,7 +22,7 @@ class Config:
 
     # Sync performance settings
     sync_batch_size: int = 10000
-    oracle_fetch_batch_size: int = 1000
+    oracle_fetch_batch_size: int = 10000
     sync_max_duration_seconds: int = 3600
     test_sync_default_row_limit: int = 100000
 

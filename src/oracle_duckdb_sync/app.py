@@ -17,7 +17,9 @@ from oracle_duckdb_sync.session_state import (
 from oracle_duckdb_sync.data_query import (
     get_available_tables,
     determine_default_table_name,
-    query_duckdb_table
+    get_table_row_count,
+    query_duckdb_table,
+    query_duckdb_table_cached
 )
 from oracle_duckdb_sync.visualization import render_data_visualization
 
@@ -93,9 +95,8 @@ def main():
     # Check if sync is running and update progress
     if st.session_state.sync_status == 'running':
         check_progress()
-        # Auto-refresh
-        time.sleep(SYNC_PROGRESS_REFRESH_INTERVAL)
-        st.rerun()
+        # Use st.empty() placeholder for progress updates without blocking
+        # Note: Removed automatic rerun to prevent UI lock
     
     # Render sync status UI (running, completed, or error)
     render_sync_status_ui()
@@ -121,29 +122,57 @@ def main():
     default_table = determine_default_table_name(config, table_list)    
     
     duckdb_table_name = st.text_input("조회할 테이블명", value=default_table, help="DuckDB 테이블명 (소문자, 스키마 없이)")
-    # Query DuckDB table and cache result
-    duckdb_query_result = query_duckdb_table(duckdb, duckdb_table_name)    
+
+    # Query DuckDB table with caching for type conversion
+    row_count = get_table_row_count(duckdb, duckdb_table_name)
+    
+    if st.button("조회"):     
+        # Pass time_column for incremental data detection
+        duckdb_query_result = query_duckdb_table_cached(duckdb, duckdb_table_name, row_count, time_column=time_column)    
             
-    st.subheader("시각화")        
-    # Display cached query result if available
-    if duckdb_query_result:
-        df_converted = duckdb_query_result['df_converted']
-        visualization_table_name = duckdb_query_result['table_name']
+        if duckdb_query_result['success']:
+            st.session_state.query_result = duckdb_query_result
+                        
+        else:
+            st.session_state.query_result = None            
+            
+    st.subheader("시각화")
+    # Display cached query result if available and successful
+    if st.session_state.query_result and st.session_state.query_result.get('success') and st.session_state.query_result.get('df_converted') is not None:
+        df_converted = st.session_state.query_result['df_converted']
+        visualization_table_name = st.session_state.query_result['table_name']
 
         # Render visualization
         render_data_visualization(df_converted, visualization_table_name)        
 
     st.subheader("데이터 조회")
-    
-    if st.button("조회"):
-        if duckdb_query_result['success']:
-            st.session_state.query_result = duckdb_query_result
-        
-            # Show data
-            st.dataframe(df_converted)
-                        
-        else:
-            st.session_state.query_result = None
+
+    if st.session_state.query_result and st.session_state.query_result.get('success'):
+        # Get df_converted from query_result to avoid variable scope issues
+        df_converted = st.session_state.query_result.get('df_converted')
+
+        if df_converted is not None:
+            # Display row count
+            total_rows = len(df_converted)
+            st.info(f"📊 총 {total_rows:,}행 조회됨")
+
+            # Limit displayed rows to prevent MessageSizeError
+            max_display_rows = st.number_input(
+                "표시할 최대 행 수",
+                min_value=100,
+                max_value=1000,
+                value=100,
+                step=100,
+                help="브라우저 성능을 위해 표시되는 행 수를 제한합니다."
+            )
+
+            # Show data with row limit - add spinner to prevent UI blocking
+            with st.spinner(f"데이터 테이블 렌더링 중... ({min(total_rows, max_display_rows):,}행)"):
+                if total_rows > max_display_rows:
+                    st.warning(f"⚠️ 성능을 위해 {max_display_rows:,}행만 표시합니다. (전체: {total_rows:,}행)")
+                    st.dataframe(df_converted.head(max_display_rows))
+                else:
+                    st.dataframe(df_converted)
 
 if __name__ == "__main__":
     main()

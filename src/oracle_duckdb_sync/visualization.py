@@ -117,12 +117,12 @@ def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, m
 def render_data_visualization(df: pd.DataFrame, table_name: str):
     """
     Render interactive data visualization with Plotly charts.
-    
+
     Args:
-        df: DataFrame to visualize
+        df: DataFrame to visualize (can be None)
         table_name: Name of the table being visualized
     """
-    if df.empty:
+    if df is None or df.empty:
         return
     
     # Detect visualizable columns
@@ -175,69 +175,109 @@ def render_data_visualization(df: pd.DataFrame, table_name: str):
     if not y_cols:
         st.info("💡 차트에 표시할 Y축 컬럼을 선택하세요.")
         return
-    
-    # Data range filtering UI
-    st.markdown("**데이터 범위 필터**")
-    st.caption("선택한 컬럼의 데이터를 허용 범위 내로 필터링합니다. (예: 이상치 제거)")
-    
-    # Filter column selection
-    filter_col = st.selectbox(
-        "필터링할 컬럼",
-        options=y_cols,
-        help="허용 범위 필터를 적용할 컬럼을 선택하세요"
-    )
-    
-    # Get min/max values for the selected column
-    col_min = df[filter_col].min()
-    col_max = df[filter_col].max()
-    col_mean = df[filter_col].mean()
-    col_std = df[filter_col].std()
-    
-    # Create columns for min/max input
-    filter_col1, filter_col2 = st.columns(2)
-    
-    with filter_col1:
-        min_value = st.number_input(
-            "최소값",
-            value=col_min,
-            min_value=col_min,
-            max_value=col_max,
-            format="%.6f",
-            help=f"현재 최소값: {col_min:.6f}"
-        )
-    
-    with filter_col2:
-        max_value = st.number_input(
-            "최대값",
-            value=col_max,
-            min_value=col_min,
-            max_value=col_max,
-            format="%.6f",
-            help=f"현재 최대값: {col_max:.6f}"
-        )
-    
-    # Display statistics
-    st.caption(f"📊 통계 - 평균: {col_mean:.6f}, 표준편차: {col_std:.6f}")
-    
-    # Apply filter if range is different from original
-    filtered_df = df
-    filter_applied = False
-    if min_value > col_min or max_value < col_max:
-        filtered_df = filter_dataframe_by_range(df, filter_col, min_value, max_value)
-        excluded_count = len(df) - len(filtered_df)
-        st.info(f"✂️ {excluded_count}개의 범위 외 데이터가 제외되었습니다. (전체: {len(df)}, 필터링 후: {len(filtered_df)})")
-        filter_applied = True
 
-    # Prepare and display chart
-    # Pass filter_col to calculate Y-axis range based on filtered column only
+    # Clear filter if Y-axis columns changed
+    prev_y_cols = st.session_state.get(f'prev_y_cols_{table_name}')
+    if prev_y_cols != y_cols:
+        # Y columns changed, invalidate filter
+        filter_key = f'filter_{table_name}'
+        st.session_state.pop(f'{filter_key}_applied', None)
+        st.session_state.pop(f'{filter_key}_col', None)
+        st.session_state.pop(f'{filter_key}_min', None)
+        st.session_state.pop(f'{filter_key}_max', None)
+        st.session_state[f'prev_y_cols_{table_name}'] = y_cols
+
+    # Check if filter is applied in session state
+    filter_key = f'filter_{table_name}'
+    filter_applied = st.session_state.get(f'{filter_key}_applied', False)
+
+    # Apply filter if active
+    df_to_plot = df.copy()
+    if filter_applied:
+        filter_col = st.session_state.get(f'{filter_key}_col')
+        filter_min = st.session_state.get(f'{filter_key}_min')
+        filter_max = st.session_state.get(f'{filter_key}_max')
+
+        if filter_col and filter_min is not None and filter_max is not None:
+            df_to_plot = filter_dataframe_by_range(df_to_plot, filter_col, filter_min, filter_max)
+
+            # Check if all data was filtered out
+            if len(df_to_plot) == 0:
+                st.warning("⚠️ 필터 조건에 맞는 데이터가 없습니다. 필터를 조정하거나 초기화하세요.")
+                return
+
+            # Show filter status
+            st.info(f"🔍 **활성 필터**: {filter_col} ∈ [{filter_min:.6f}, {filter_max:.6f}] (표시: {len(df_to_plot)}/{len(df)}행)")
+
+    # Prepare and display chart with filtered data
     _create_and_display_chart(
-        filtered_df,
+        df_to_plot,
         x_col,
         y_cols,
         numeric_cols,
         table_name,
-        filtered_column=filter_col if filter_applied else None
+        filtered_column=None
     )
+
+    # Filter controls in collapsible section BELOW chart
+    st.markdown("---")
+    with st.expander("🔍 데이터 범위 필터 (이상치 제거)", expanded=False):
+        # Use st.form to prevent reruns until submit
+        with st.form(key=f"filter_form_{table_name}"):
+            st.caption("필터를 적용하려면 범위를 설정하고 '필터 적용' 버튼을 클릭하세요.")
+
+            # Fixed filter column (first Y-axis column, not selectable)
+            filter_col = y_cols[0]
+            st.info(f"필터 대상 컬럼: **{filter_col}**")
+
+            # Calculate min/max values
+            col_min = float(df[filter_col].min())
+            col_max = float(df[filter_col].max())
+            col_mean = float(df[filter_col].mean())
+            col_std = float(df[filter_col].std())
+
+            # Min/Max inputs (no dynamic keys needed inside form)
+            col1, col2 = st.columns(2)
+            with col1:
+                min_value = st.number_input(
+                    "최소값",
+                    value=col_min,
+                    min_value=col_min,
+                    max_value=col_max,
+                    format="%.6f",
+                    help=f"현재 최소값: {col_min:.6f}"
+                )
+            with col2:
+                max_value = st.number_input(
+                    "최대값",
+                    value=col_max,
+                    min_value=col_min,
+                    max_value=col_max,
+                    format="%.6f",
+                    help=f"현재 최대값: {col_max:.6f}"
+                )
+
+            # Statistics
+            st.caption(f"📊 통계 - 평균: {col_mean:.6f}, 표준편차: {col_std:.6f}")
+
+            # Form submit button (batches all changes)
+            submitted = st.form_submit_button("✅ 필터 적용", use_container_width=True)
+
+            if submitted:
+                # Store filter in session state
+                st.session_state[f'{filter_key}_applied'] = True
+                st.session_state[f'{filter_key}_col'] = filter_col
+                st.session_state[f'{filter_key}_min'] = min_value
+                st.session_state[f'{filter_key}_max'] = max_value
+                st.rerun()
+
+        # Reset button (outside form)
+        if st.button("🔄 필터 초기화", key=f"reset_filter_{table_name}"):
+            st.session_state.pop(f'{filter_key}_applied', None)
+            st.session_state.pop(f'{filter_key}_col', None)
+            st.session_state.pop(f'{filter_key}_min', None)
+            st.session_state.pop(f'{filter_key}_max', None)
+            st.rerun()
 
 
 def _prepare_plot_dataframe(df: pd.DataFrame, numeric_cols: list, x_col: str = None) -> pd.DataFrame:
@@ -289,7 +329,10 @@ def _create_and_display_chart(
     # Prepare data - filter numeric_cols to only include those present in df
     # This is important because df might be a filtered dataframe
     available_numeric_cols = [col for col in numeric_cols if col in df.columns]
-    df_plot = _prepare_plot_dataframe(df, available_numeric_cols, x_col=x_col)
+
+    # Show spinner while preparing plot data (sorting and type conversion can be slow)
+    with st.spinner(f"차트 데이터 준비 중... ({len(df):,}행 처리)"):
+        df_plot = _prepare_plot_dataframe(df, available_numeric_cols, x_col=x_col)
 
     try:
         # Calculate Y-axis range based on filtered column or all Y columns
@@ -317,29 +360,31 @@ def _create_and_display_chart(
             col_max = df_plot[col].max()
             viz_logger.info(f"  Column '{col}' data range: [{col_min:.6f}, {col_max:.6f}]")
 
-        # Create the chart
-        if x_col:
-            # Use datetime column as x-axis
-            fig = px.line(df_plot, x=x_col, y=y_cols, title=f"{table_name} 트렌드")
-        else:
-            # No datetime column, use index as x-axis
-            fig = px.line(df_plot, y=y_cols, title=f"{table_name} 트렌드")
-        
-        # Apply Y-axis range if calculated
-        if y_axis_min is not None and y_axis_max is not None:
-            # Use update_layout for more reliable Y-axis range setting
-            fig.update_layout(
-                yaxis=dict(
-                    range=[y_axis_min, y_axis_max],
-                    autorange=False,  # Disable autorange
-                    rangemode='normal'  # Don't force zero
+        # Create the chart with spinner
+        with st.spinner("차트 렌더링 중..."):
+            # Create the chart
+            if x_col:
+                # Use datetime column as x-axis
+                fig = px.line(df_plot, x=x_col, y=y_cols, title=f"{table_name} 트렌드")
+            else:
+                # No datetime column, use index as x-axis
+                fig = px.line(df_plot, y=y_cols, title=f"{table_name} 트렌드")
+
+            # Apply Y-axis range if calculated
+            if y_axis_min is not None and y_axis_max is not None:
+                # Use update_layout for more reliable Y-axis range setting
+                fig.update_layout(
+                    yaxis=dict(
+                        range=[y_axis_min, y_axis_max],
+                        autorange=False,  # Disable autorange
+                        rangemode='normal'  # Don't force zero
+                    )
                 )
-            )
-            viz_logger.info(f"Y-axis range set to [{y_axis_min:.6f}, {y_axis_max:.6f}]")
-        
-        # Disable range slider for cleaner view
-        fig.update_xaxes(rangeslider_visible=False)
-        
+                viz_logger.info(f"Y-axis range set to [{y_axis_min:.6f}, {y_axis_max:.6f}]")
+
+            # Disable range slider for cleaner view
+            fig.update_xaxes(rangeslider_visible=False)
+
         st.plotly_chart(fig, use_container_width=True)
     except Exception as e:
         viz_logger.error(f"차트 생성 오류: {e}")

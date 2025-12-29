@@ -261,6 +261,10 @@ def render_running_status():
             st.sidebar.text(f"⏰ 예상 완료: {progress['eta']}")
     else:
         st.sidebar.info("동기화 시작 중...")
+    
+    # Manual refresh button for progress updates
+    if st.sidebar.button("🔄 진행 상황 새로고침", key="refresh_progress"):
+        st.rerun()
 
 
 def render_completed_status():
