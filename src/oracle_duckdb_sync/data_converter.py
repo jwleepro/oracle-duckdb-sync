@@ -167,6 +167,57 @@ def convert_to_numeric(series: pd.Series) -> Optional[pd.Series]:
         return None
 
 
+def detect_column_type(column: pd.Series, threshold: float = 0.9) -> str:
+    """
+    Detect the expected type of a column.
+    
+    Args:
+        column: Pandas series to analyze
+        threshold: Minimum proportion of values that must match the type (default: 0.9)
+    
+    Returns:
+        Detected type: 'numeric', 'datetime', or 'string'
+    """
+    # Skip if already numeric or datetime
+    if pd.api.types.is_numeric_dtype(column) or pd.api.types.is_datetime64_any_dtype(column):
+        return 'numeric' if pd.api.types.is_numeric_dtype(column) else 'datetime'
+    
+    # Only process object (string) columns
+    if column.dtype != 'object':
+        return 'string'
+    
+    # Try datetime first (more specific)
+    if is_datetime_string(column, threshold):
+        return 'datetime'
+    
+    # Try numeric
+    if is_numeric_string(column, threshold):
+        return 'numeric'
+    
+    return 'string'
+
+
+def convert_column_to_type(column: pd.Series, target_type: str) -> pd.Series:
+    """
+    Convert a column to the specified target type.
+    
+    Args:
+        column: Pandas series to convert
+        target_type: Target type ('numeric', 'datetime', or 'string')
+    
+    Returns:
+        Converted series
+    """
+    if target_type == 'numeric':
+        converted = convert_to_numeric(column)
+        return converted if converted is not None else column
+    elif target_type == 'datetime':
+        converted = convert_to_datetime(column)
+        return converted if converted is not None else column
+    else:  # 'string'
+        return column
+
+
 def detect_and_convert_types(df: pd.DataFrame) -> pd.DataFrame:
     """
     Automatically detect and convert string columns to appropriate types.
@@ -201,25 +252,20 @@ def detect_and_convert_types(df: pd.DataFrame) -> pd.DataFrame:
         if series.dtype != 'object':
             continue
         
-        # Try datetime conversion first (more specific)
-        if is_datetime_string(series):
-            converted = convert_to_datetime(series)
-            if converted is not None and not converted.isna().all():
-                df_converted[col] = converted
-                conversion_summary['datetime'].append(col)
-                logger.info(f"Converted column '{col}' to datetime")
-                continue
+        # Detect column type
+        detected_type = detect_column_type(series)
         
-        # Try numeric conversion
-        if is_numeric_string(series):
-            converted = convert_to_numeric(series)
-            if converted is not None and not converted.isna().all():
+        # Convert to detected type
+        if detected_type != 'string':
+            converted = convert_column_to_type(series, detected_type)
+            if not converted.isna().all():
                 df_converted[col] = converted
-                conversion_summary['numeric'].append(col)
-                logger.info(f"Converted column '{col}' to numeric")
-                continue
-        
-        conversion_summary['unchanged'].append(col)
+                conversion_summary[detected_type].append(col)
+                logger.info(f"Converted column '{col}' to {detected_type}")
+            else:
+                conversion_summary['unchanged'].append(col)
+        else:
+            conversion_summary['unchanged'].append(col)
     
     # Log summary
     if conversion_summary['numeric'] or conversion_summary['datetime']:
