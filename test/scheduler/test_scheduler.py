@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.scheduler import SyncScheduler
+from oracle_duckdb_sync.scheduler.scheduler import SyncScheduler
 from apscheduler.triggers.cron import CronTrigger
 
 def test_110_scheduler_setup():

@@ -8,7 +8,7 @@ and full table querying.
 import pytest
 import pandas as pd
 from unittest.mock import Mock, MagicMock, patch
-from oracle_duckdb_sync.data_query import (
+from oracle_duckdb_sync.data.query import (
     get_table_row_count,
     query_duckdb_table,
     query_duckdb_table_aggregated

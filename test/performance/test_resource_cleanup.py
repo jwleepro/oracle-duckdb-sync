@@ -1,7 +1,7 @@
 import pytest
 import time
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.config import Config
 
 
@@ -16,8 +16,8 @@ def mock_config():
 
 def test_sync_engine_max_iterations():
     """Verify sync terminates after max iterations to prevent infinite loops"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
 
@@ -40,8 +40,8 @@ def test_sync_engine_max_iterations():
 
 def test_sync_engine_timeout():
     """Verify sync terminates after max duration"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
 
@@ -72,7 +72,7 @@ def test_duckdb_connection_cleanup():
     from oracle_duckdb_sync.duckdb_source import DuckDBSource
     from oracle_duckdb_sync.config import Config
 
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb") as mock_duckdb:
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
 
         config = Config(

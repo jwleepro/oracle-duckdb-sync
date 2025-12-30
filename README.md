@@ -103,9 +103,51 @@ Oracle 11g 연결을 위해 Oracle Instant Client가 필요합니다:
 
 ```bash
 # Windows PowerShell/CMD
-streamlit run src/oracle_duckdb_sync/app.py
+streamlit run src/oracle_duckdb_sync/ui/app.py
 
 # 브라우저가 자동으로 열리며 http://localhost:8501 에서 확인 가능
+```
+
+**프로젝트 구조**:
+
+프로젝트는 2단계 디렉토리 구조로 구성되어 있습니다:
+
+```
+src/oracle_duckdb_sync/
+├── config.py, logger.py          # 루트: 공통 설정 및 로거
+├── ui/                            # UI 및 Streamlit 컴포넌트
+│   ├── app.py                     # 메인 Streamlit 앱
+│   ├── handlers.py                # UI 이벤트 핸들러
+│   ├── session_state.py           # Streamlit 세션 상태 관리
+│   └── visualization.py           # 데이터 시각화
+├── database/                      # 데이터베이스 연결 및 동기화
+│   ├── oracle_source.py           # Oracle 연결
+│   ├── duckdb_source.py           # DuckDB 연결
+│   └── sync_engine.py             # 동기화 엔진
+├── scheduler/                     # 스케줄링 및 백그라운드 작업
+│   ├── scheduler.py               # 작업 스케줄러
+│   └── sync_worker.py             # 백그라운드 워커
+├── data/                          # 데이터 처리 및 쿼리
+│   ├── converter.py               # 타입 변환
+│   ├── query.py                   # DuckDB 쿼리
+│   └── lttb.py                    # LTTB 다운샘플링
+└── state/                         # 상태 관리
+    ├── sync_state.py              # 동기화 상태 및 락
+    └── file_manager.py            # 파일 I/O 관리
+```
+
+**Import 방법**:
+
+새로운 코드 작성 시 다음과 같이 import하세요:
+
+```python
+# 권장: 명시적 경로 사용
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
+from oracle_duckdb_sync.data.query import query_duckdb_table
+from oracle_duckdb_sync.ui.handlers import handle_test_sync
+
+# 하위 호환성: 기존 코드도 동작
+from oracle_duckdb_sync import SyncEngine, query_duckdb_table
 ```
 
 **3단계: UI 사용법**

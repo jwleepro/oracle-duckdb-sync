@@ -51,7 +51,7 @@ def test_133_incremental_sync_performance_10k_rows():
     Verify that incremental synchronization of 10,000 rows completes in under 1 minute.
     This test measures the complete sync pipeline from Oracle fetch to DuckDB insert.
     """
-    from oracle_duckdb_sync.sync_engine import SyncEngine
+    from oracle_duckdb_sync.database.sync_engine import SyncEngine
     from oracle_duckdb_sync.config import Config
     
     # Create test configuration
@@ -72,8 +72,8 @@ def test_133_incremental_sync_performance_10k_rows():
     ]
     
     # Mock Oracle and DuckDB sources
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         # Setup mock Oracle source
         mock_oracle = mock_oracle_cls.return_value

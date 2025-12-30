@@ -1,7 +1,7 @@
 import pytest
 import datetime
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.oracle_source import OracleSource, datetime_handler
+from oracle_duckdb_sync.database.oracle_source import OracleSource, datetime_handler
 from oracle_duckdb_sync.config import Config
 
 @pytest.fixture

@@ -28,10 +28,10 @@ def test_150_sync_worker_thread_lifecycle(mock_config):
     4. Worker thread terminates properly
     5. Worker can be reused for multiple sync operations
     """
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -93,10 +93,10 @@ def test_150_sync_worker_thread_lifecycle(mock_config):
 
 def test_150_sync_worker_status_transitions(mock_config):
     """Test status transitions during sync lifecycle"""
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -165,10 +165,10 @@ def test_150_sync_worker_status_transitions(mock_config):
 
 def test_150_sync_worker_error_handling(mock_config):
     """Test error handling in SyncWorker"""
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -219,11 +219,11 @@ def test_151_progress_callback_and_queue(mock_config):
     4. Messages can be retrieved from queue
     5. Queue is thread-safe
     """
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     import queue
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -311,10 +311,10 @@ def test_151_progress_callback_and_queue(mock_config):
 
 def test_151_progress_queue_optional(mock_config):
     """Test that progress queue is optional"""
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -368,12 +368,12 @@ def test_152_pause_resume_control(mock_config):
     4. Processing continues from where it stopped
     5. Status transitions correctly (running -> paused -> running)
     """
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     import queue
     import time
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -476,10 +476,10 @@ def test_152_pause_resume_control(mock_config):
 
 def test_152_pause_state_transitions(mock_config):
     """Test pause state transitions and error conditions"""
-    from oracle_duckdb_sync.sync_worker import SyncWorker
+    from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
     
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value

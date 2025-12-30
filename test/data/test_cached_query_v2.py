@@ -7,7 +7,7 @@ This test module covers the caching behavior of query functions.
 import pytest
 import pandas as pd
 from unittest.mock import Mock, MagicMock, patch
-from oracle_duckdb_sync.data_query import (
+from oracle_duckdb_sync.data.query import (
     query_duckdb_table_cached,
     _cached_convert_dataframe,
     _fetch_raw_data

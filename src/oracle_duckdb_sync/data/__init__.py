@@ -17,8 +17,6 @@ from oracle_duckdb_sync.data.query import (
     get_table_row_count,
     query_duckdb_table,
     query_duckdb_table_with_conversion_ui,
-    fetch_raw_data,
-    cached_convert_dataframe,
     query_duckdb_table_cached,
     query_duckdb_table_aggregated
 )
@@ -41,8 +39,6 @@ __all__ = [
     'get_table_row_count',
     'query_duckdb_table',
     'query_duckdb_table_with_conversion_ui',
-    'fetch_raw_data',
-    'cached_convert_dataframe',
     'query_duckdb_table_cached',
     'query_duckdb_table_aggregated',
     # LTTB functions

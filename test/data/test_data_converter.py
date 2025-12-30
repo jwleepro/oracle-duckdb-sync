@@ -5,7 +5,7 @@ Unit tests for data_converter module.
 import pytest
 import pandas as pd
 import numpy as np
-from oracle_duckdb_sync.data_converter import (
+from oracle_duckdb_sync.data.converter import (
     is_numeric_string,
     is_datetime_string,
     convert_to_datetime,

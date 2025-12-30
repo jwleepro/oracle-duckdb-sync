@@ -2,7 +2,7 @@
 import pytest
 import json
 from unittest.mock import patch
-from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.config import Config
 
 
@@ -28,8 +28,8 @@ def test_141_schema_mapping_version_management(tmp_path, mock_config):
     4. Multiple versions can coexist
     5. Latest version is identified correctly
     """
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource"), \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource"):
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource"), \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         engine = SyncEngine(mock_config)
         schema_file = tmp_path / "schema_mappings.json"
         

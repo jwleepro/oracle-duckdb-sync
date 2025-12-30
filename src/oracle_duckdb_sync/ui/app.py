@@ -1,6 +1,5 @@
 import streamlit as st
 import time
-from oracle_duckdb_sync import visualization
 from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.logger import setup_logger

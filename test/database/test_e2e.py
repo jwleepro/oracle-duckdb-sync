@@ -4,8 +4,8 @@ End-to-End Tests for Oracle-DuckDB Sync System
 import pytest
 from unittest.mock import MagicMock, patch, Mock
 from oracle_duckdb_sync.config import Config, load_config
-from oracle_duckdb_sync.sync_engine import SyncEngine
-from oracle_duckdb_sync.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 # Do NOT import OracleSource here - it will be imported after TNS_ADMIN is set
 
 
@@ -33,8 +33,8 @@ def test_130_full_sync_e2e(e2e_config):
     """
     # This test should verify the complete E2E flow
     # Oracle data extraction -> DuckDB loading -> UI query
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         # Setup mock Oracle source with sample data
         mock_oracle = mock_oracle_cls.return_value
@@ -76,7 +76,7 @@ def test_130_full_sync_e2e(e2e_config):
         mock_duckdb.execute.return_value = inserted_data
 
         # Simulate UI layer querying DuckDB (create new instance like UI would)
-        with patch("oracle_duckdb_sync.duckdb_source.DuckDBSource.__init__", return_value=None):
+        with patch("oracle_duckdb_sync.database.duckdb_source.DuckDBSource.__init__", return_value=None):
             ui_duckdb_source = DuckDBSource(e2e_config)
             ui_duckdb_source.execute = Mock(return_value=inserted_data)
 
@@ -131,7 +131,7 @@ def test_131_incremental_sync_e2e_real_db():
     
     try:
         # Import OracleSource AFTER setting TNS_ADMIN
-        from oracle_duckdb_sync.oracle_source import OracleSource
+        from oracle_duckdb_sync.database.oracle_source import OracleSource
 
         # Load configuration from .env file
         config = load_config()
@@ -199,7 +199,7 @@ def test_131_incremental_sync_e2e_real_db():
         # Step 2: Perform initial full sync in 10k batches
         print(f"\n[Step 2] Performing full sync in 10k batches...")
         
-        with patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+        with patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
             mock_duckdb = mock_duckdb_cls.return_value
             mock_duckdb.ensure_database.return_value = None
             mock_duckdb.table_exists.return_value = True

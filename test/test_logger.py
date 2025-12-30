@@ -26,7 +26,7 @@ def test_100_logger_initialization():
 def test_101_stats_logging(tmp_path):
     """TEST-101: 처리 건수·지연 시간 통계 기록"""
     from unittest.mock import patch, MagicMock
-    from oracle_duckdb_sync.sync_engine import SyncEngine
+    from oracle_duckdb_sync.database.sync_engine import SyncEngine
     from oracle_duckdb_sync.config import Config    
 
     log_file = tmp_path / "stats.log"
@@ -37,8 +37,8 @@ def test_101_stats_logging(tmp_path):
         duckdb_path=":memory:"
     )
 
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_oracle.fetch_batch.side_effect = [[(i,) for i in range(100)], []]
 

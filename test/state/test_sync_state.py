@@ -2,7 +2,7 @@
 import pytest
 import os
 import time
-from oracle_duckdb_sync.sync_state import SyncLock
+from oracle_duckdb_sync.state.sync_state import SyncLock
 
 
 def test_sync_lock_acquire_release():

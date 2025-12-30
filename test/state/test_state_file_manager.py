@@ -3,7 +3,7 @@ import json
 import os
 import tempfile
 import pytest
-from oracle_duckdb_sync.state_file_manager import StateFileManager
+from oracle_duckdb_sync.state.file_manager import StateFileManager
 
 
 class TestStateFileManager:

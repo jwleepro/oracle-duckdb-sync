@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.config import Config
 
 
@@ -15,7 +15,7 @@ def mock_config():
 
 def test_040_duckdb_ping(mock_config):
     """TEST-040: DuckDB health check/ping 확인"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb") as mock_duckdb:
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
         mock_result = MagicMock()
         mock_result.fetchall.return_value = [(1,)]
@@ -36,7 +36,7 @@ def test_040_duckdb_ping(mock_config):
 
 def test_041_ensure_database(mock_config):
     """TEST-041: ensure_database는 DuckDB에서 no-op"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb") as mock_duckdb:
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
         source = DuckDBSource(mock_config)
 
@@ -56,7 +56,7 @@ def test_041_ensure_database(mock_config):
 
 def test_042_column_type_mapping(mock_config):
     """TEST-042: 컬럼 타입 매핑 검증"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb"):
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb"):
         source = DuckDBSource(mock_config)
         assert source.map_oracle_type("NUMBER") == "DOUBLE"
         assert source.map_oracle_type("DATE") == "TIMESTAMP"
@@ -65,7 +65,7 @@ def test_042_column_type_mapping(mock_config):
 
 def test_050_batch_insert(mock_config):
     """TEST-050: 배치 INSERT 성공 및 행 수 검증"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb") as mock_duckdb:
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
         source = DuckDBSource(mock_config)
 
@@ -82,7 +82,7 @@ def test_050_batch_insert(mock_config):
 
 def test_051_create_table_query(mock_config):
     """TEST-051: CREATE TABLE 쿼리 생성 (DuckDB PRIMARY KEY 방식)"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb"):
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb"):
         source = DuckDBSource(mock_config)
         ddl = source.build_create_table_query(
             "test_table",
@@ -95,7 +95,7 @@ def test_051_create_table_query(mock_config):
 
 def test_041b_disconnect_cleanup(mock_config):
     """TEST-041b: disconnect가 connection을 정리하는지 확인"""
-    with patch("oracle_duckdb_sync.duckdb_source.duckdb") as mock_duckdb:
+    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
 
         source = DuckDBSource(mock_config)

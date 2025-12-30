@@ -3,7 +3,7 @@ import pytest
 import json
 import os
 from unittest.mock import patch, MagicMock
-from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.config import Config
 
 
@@ -29,8 +29,8 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
     4. Partial progress is tracked during sync
     5. State is only committed after successful completion
     """
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -140,8 +140,8 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
 
 def test_142_partial_progress_tracking(tmp_path, mock_config):
     """Additional test for tracking partial progress during sync"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value

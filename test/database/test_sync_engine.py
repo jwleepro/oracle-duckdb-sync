@@ -1,7 +1,7 @@
 import pytest
 import time
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.config import Config
 
 
@@ -16,8 +16,8 @@ def mock_config():
 
 def test_070_full_sync_pipeline(mock_config):
     """TEST-070: Oracle 전체 추출 → DuckDB 적재 파이프라인 확인"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
         mock_oracle.fetch_batch.side_effect = [[(1, "Data1")], []]
@@ -28,8 +28,8 @@ def test_070_full_sync_pipeline(mock_config):
 
 def test_072_batch_sync_processing(mock_config):
     """TEST-072: 대량 데이터 배치/청크 처리 동작 확인"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
         mock_oracle.fetch_batch.side_effect = [[(1,), (2,)], [(3,)], []]
@@ -41,8 +41,8 @@ def test_072_batch_sync_processing(mock_config):
 
 def test_080_incremental_sync_query(mock_config):
     """TEST-080: 마지막 동기화 시각 이후 데이터 조회 확인"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         engine = SyncEngine(mock_config)
         last_sync = "2023-01-01 10:00:00"
@@ -52,8 +52,8 @@ def test_080_incremental_sync_query(mock_config):
 
 def test_082_retry_on_failure(mock_config):
     """TEST-082: 실패 시 재시도 동작 확인 (최소 3회)"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_oracle.fetch_batch.side_effect = Exception("DB Error")
         engine = SyncEngine(mock_config)
@@ -64,8 +64,8 @@ def test_082_retry_on_failure(mock_config):
 
 def test_071_full_sync_progress_logging(mock_config):
     """TEST-071: 진행률·로그 기록 검증"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls, \
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls, \
          patch.object(SyncEngine, "_log_progress") as mock_log_progress:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
@@ -92,8 +92,8 @@ def test_071_full_sync_progress_logging(mock_config):
 
 def test_081_incremental_upsert_handling(mock_config):
     """TEST-081: 증분 데이터 upsert 처리(중복 방지)"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource") as mock_duckdb_cls:
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
 
@@ -113,8 +113,8 @@ def test_081_incremental_upsert_handling(mock_config):
 
 def test_083_save_load_sync_state(tmp_path, mock_config):
     """TEST-083: 마지막 성공 지점 저장 및 로드 확인"""
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource"), \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource"):
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource"), \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         engine = SyncEngine(mock_config)
         state_file = tmp_path / "sync_state.json"
         engine.save_state("O_TABLE", "2023-05-20 12:00:00", file_path=str(state_file))
@@ -133,8 +133,8 @@ def test_140_sync_state_save_and_load(tmp_path, mock_config):
     5. Handle non-existent state file
     6. Handle corrupted state file
     """
-    with patch("oracle_duckdb_sync.sync_engine.OracleSource"), \
-         patch("oracle_duckdb_sync.sync_engine.DuckDBSource"):
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource"), \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         engine = SyncEngine(mock_config)
         state_file = tmp_path / "sync_state.json"
         

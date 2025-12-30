@@ -8,7 +8,7 @@ chart rendering and data processing for visual display.
 import pytest
 import pandas as pd
 import numpy as np
-from oracle_duckdb_sync.visualization import (
+from oracle_duckdb_sync.ui.visualization import (
     calculate_y_axis_range,
     render_data_visualization,
     filter_dataframe_by_range

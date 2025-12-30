@@ -6,7 +6,7 @@ This test module covers the selective column type conversion features.
 
 import pytest
 import pandas as pd
-from oracle_duckdb_sync.data_converter import (
+from oracle_duckdb_sync.data.converter import (
     detect_convertible_columns,
     convert_selected_columns
 )
