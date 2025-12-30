@@ -19,7 +19,8 @@ from oracle_duckdb_sync.data_query import (
     determine_default_table_name,
     get_table_row_count,
     query_duckdb_table,
-    query_duckdb_table_cached
+    query_duckdb_table_cached,
+    query_duckdb_table_aggregated
 )
 from oracle_duckdb_sync.visualization import render_data_visualization
 
@@ -125,25 +126,91 @@ def main():
 
     # Query DuckDB table with caching for type conversion
     row_count = get_table_row_count(duckdb, duckdb_table_name)
-    
-    if st.button("조회"):     
-        # Pass time_column for incremental data detection
-        duckdb_query_result = query_duckdb_table_cached(duckdb, duckdb_table_name, row_count, time_column=time_column)    
-            
-        if duckdb_query_result['success']:
-            st.session_state.query_result = duckdb_query_result
-                        
+
+    # Resolution selector for time bucket aggregation
+    st.subheader("📊 데이터 조회 옵션")
+
+    col1, col2 = st.columns([2, 1])
+
+    with col1:
+        query_mode = st.radio(
+            "조회 모드",
+            options=["집계 뷰 (빠름)", "상세 뷰 (전체 데이터 + LTTB)"],
+            index=0,
+            help="집계 뷰: 빠른 초기 로딩, 트렌드 확인용 | 상세 뷰: 이상치 포함 전체 데이터"
+        )
+
+    with col2:
+        if query_mode == "집계 뷰 (빠름)":
+            resolution = st.selectbox(
+                "시간 해상도",
+                options=["1 minute", "10 minutes", "1 hour"],
+                index=1,
+                help="데이터 집계 간격 (작을수록 상세하지만 느림)"
+            )
         else:
-            st.session_state.query_result = None            
+            resolution = None
+            st.info("💡 LTTB 샘플링 적용됨")
+    
+    if st.button("조회"):
+        if query_mode == "집계 뷰 (빠름)":
+            # Use time bucket aggregation for fast initial view
+            with st.spinner(f"집계 데이터 조회 중... (해상도: {resolution})"):
+                agg_result = query_duckdb_table_aggregated(
+                    duckdb,
+                    duckdb_table_name,
+                    time_column=time_column,
+                    interval=resolution
+                )
+
+            if agg_result['success']:
+                # Store aggregated result with query mode info
+                st.session_state.query_result = {
+                    'df_converted': agg_result['df_aggregated'],
+                    'table_name': agg_result['table_name'],
+                    'success': True,
+                    'query_mode': 'aggregated',
+                    'interval': agg_result['interval'],
+                    'numeric_cols': agg_result.get('numeric_cols', [])
+                }
+                st.success(f"✅ 집계 완료: {len(agg_result['df_aggregated'])} 시간 구간")
+            else:
+                st.error(f"집계 쿼리 오류: {agg_result['error']}")
+                st.session_state.query_result = None
+
+        else:
+            # Use detailed view with LTTB downsampling
+            with st.spinner(f"전체 데이터 조회 중... ({row_count:,}행)"):
+                duckdb_query_result = query_duckdb_table_cached(
+                    duckdb,
+                    duckdb_table_name,
+                    row_count,
+                    time_column=time_column
+                )
+
+            if duckdb_query_result['success']:
+                # Add query mode info
+                duckdb_query_result['query_mode'] = 'detailed'
+                st.session_state.query_result = duckdb_query_result
+            else:
+                st.session_state.query_result = None            
             
     st.subheader("시각화")
     # Display cached query result if available and successful
     if st.session_state.query_result and st.session_state.query_result.get('success') and st.session_state.query_result.get('df_converted') is not None:
         df_converted = st.session_state.query_result['df_converted']
         visualization_table_name = st.session_state.query_result['table_name']
+        query_mode = st.session_state.query_result.get('query_mode', 'detailed')
+
+        # Show query mode info
+        if query_mode == 'aggregated':
+            interval = st.session_state.query_result.get('interval', 'unknown')
+            st.info(f"📊 집계 뷰 표시 중 (해상도: {interval}, 총 {len(df_converted)} 시간 구간)")
+        else:
+            st.info(f"📊 상세 뷰 표시 중 (총 {len(df_converted):,}행)")
 
         # Render visualization
-        render_data_visualization(df_converted, visualization_table_name)        
+        render_data_visualization(df_converted, visualization_table_name, query_mode=query_mode)        
 
     st.subheader("데이터 조회")
 

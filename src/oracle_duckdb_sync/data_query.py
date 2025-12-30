@@ -832,3 +832,138 @@ def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str,
             'error': None,
             'is_incremental': False
         }
+
+
+def query_duckdb_table_aggregated(
+    duckdb: DuckDBSource,
+    table_name: str,
+    time_column: str,
+    interval: str = '10 minutes',
+    numeric_cols: list = None
+) -> dict:
+    """
+    Query DuckDB table with time bucket aggregation for fast initial view.
+
+    This function uses DuckDB's time_bucket() to aggregate data by time intervals,
+    significantly reducing the number of rows for initial visualization.
+
+    Args:
+        duckdb: DuckDBSource instance
+        table_name: Name of table to query
+        time_column: Name of timestamp column for bucketing
+        interval: Time interval for aggregation (e.g., '1 minute', '10 minutes', '1 hour')
+        numeric_cols: List of numeric columns to aggregate (if None, auto-detect)
+
+    Returns:
+        Dictionary containing:
+            - df_aggregated: Aggregated DataFrame
+            - table_name: Table name
+            - interval: Aggregation interval used
+            - success: Boolean indicating success
+            - error: Error message if failed
+    """
+    try:
+        # Get column names if numeric_cols not provided
+        if numeric_cols is None:
+            result = duckdb.conn.execute(f"SELECT * FROM {table_name} LIMIT 0")
+            all_cols = [desc[0] for desc in result.description]
+
+            # Sample data for type detection
+            sample = duckdb.conn.execute(f"SELECT * FROM {table_name} LIMIT 1000").fetchdf()
+
+            # First try native numeric columns
+            numeric_cols = [
+                col for col in sample.select_dtypes(include=['number']).columns
+                if col != time_column
+            ]
+
+            # If no numeric columns found, try to detect convertible VARCHAR columns
+            if not numeric_cols:
+                query_logger.info("No native numeric columns found, checking VARCHAR columns...")
+                from oracle_duckdb_sync.data_converter import is_numeric_string
+
+                varchar_cols = [
+                    col for col in sample.select_dtypes(include=['object', 'string']).columns
+                    if col != time_column
+                ]
+
+                for col in varchar_cols:
+                    if is_numeric_string(sample[col]):
+                        numeric_cols.append(col)
+                        query_logger.info(f"Detected numeric VARCHAR column: {col}")
+
+        if not numeric_cols:
+            return {
+                'df_aggregated': None,
+                'table_name': table_name,
+                'interval': interval,
+                'success': False,
+                'error': 'No numeric columns found for aggregation (checked both numeric and VARCHAR columns)'
+            }
+
+        # Build aggregation query with MAX/MIN/AVG for each numeric column
+        # Use TRY_CAST for VARCHAR columns to handle conversion errors gracefully
+        agg_exprs = []
+        for col in numeric_cols:
+            # Check if column needs casting (VARCHAR/string type)
+            col_type = str(sample[col].dtype)
+            if 'object' in col_type or 'string' in col_type:
+                # Cast VARCHAR to DOUBLE for aggregation
+                cast_expr = f"TRY_CAST({col} AS DOUBLE)"
+                agg_exprs.append(f"AVG({cast_expr}) as {col}_avg")
+                agg_exprs.append(f"MAX({cast_expr}) as {col}_max")
+                agg_exprs.append(f"MIN({cast_expr}) as {col}_min")
+            else:
+                # Native numeric column, no casting needed
+                agg_exprs.append(f"AVG({col}) as {col}_avg")
+                agg_exprs.append(f"MAX({col}) as {col}_max")
+                agg_exprs.append(f"MIN({col}) as {col}_min")
+
+        agg_clause = ', '.join(agg_exprs)
+
+        # Parse time_column with custom format (YYYYMMDDHHmmss)
+        query = f"""
+        SELECT
+            time_bucket(INTERVAL '{interval}', strptime(CAST({time_column} AS VARCHAR), '%Y%m%d%H%M%S')) as time_bucket,
+            {agg_clause}
+        FROM {table_name}
+        GROUP BY time_bucket
+        ORDER BY time_bucket
+        """
+
+        query_logger.info(f"Executing aggregated query with interval '{interval}'")
+
+        # Execute query
+        df_aggregated = duckdb.conn.execute(query).fetchdf()
+
+        if df_aggregated.empty:
+            return {
+                'df_aggregated': None,
+                'table_name': table_name,
+                'interval': interval,
+                'success': False,
+                'error': 'No data returned from aggregation'
+            }
+
+        query_logger.info(f"Aggregation complete: {len(df_aggregated)} time buckets")
+
+        return {
+            'df_aggregated': df_aggregated,
+            'table_name': table_name,
+            'interval': interval,
+            'numeric_cols': numeric_cols,
+            'success': True,
+            'error': None
+        }
+
+    except Exception as e:
+        query_logger.error(f"Aggregation query error: {e}")
+        import traceback
+        query_logger.error(f"Traceback:\n{traceback.format_exc()}")
+        return {
+            'df_aggregated': None,
+            'table_name': table_name,
+            'interval': interval,
+            'success': False,
+            'error': str(e)
+        }

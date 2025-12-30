@@ -10,9 +10,44 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.lttb import lttb_downsample_multi_y
 
 # Set up logger
 viz_logger = setup_logger('Visualization')
+
+
+def _prepare_aggregated_data_for_viz(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Prepare aggregated data for visualization by renaming columns.
+
+    Converts columns like 'sensor1_avg', 'sensor1_max', 'sensor1_min'
+    to 'sensor1' (using avg), 'sensor1_max', 'sensor1_min' for display.
+
+    Args:
+        df: DataFrame with aggregated columns
+
+    Returns:
+        DataFrame with renamed columns for visualization
+    """
+    df_viz = df.copy()
+
+    # Find column groups (e.g., sensor1_avg, sensor1_max, sensor1_min)
+    # and use _avg as the main value
+    cols = df_viz.columns.tolist()
+    avg_cols = [col for col in cols if col.endswith('_avg')]
+
+    for avg_col in avg_cols:
+        # Extract base name (e.g., 'sensor1' from 'sensor1_avg')
+        base_name = avg_col.replace('_avg', '')
+
+        # Rename _avg to base name for primary line
+        df_viz = df_viz.rename(columns={avg_col: base_name})
+
+    # time_bucket → time for x-axis
+    if 'time_bucket' in df_viz.columns:
+        df_viz = df_viz.rename(columns={'time_bucket': 'time'})
+
+    return df_viz
 
 
 def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) -> tuple:
@@ -114,17 +149,22 @@ def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, m
     return filtered_df
 
 
-def render_data_visualization(df: pd.DataFrame, table_name: str):
+def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str = 'detailed'):
     """
     Render interactive data visualization with Plotly charts.
 
     Args:
         df: DataFrame to visualize (can be None)
         table_name: Name of the table being visualized
+        query_mode: Query mode ('aggregated' or 'detailed')
     """
     if df is None or df.empty:
         return
-    
+
+    # Handle aggregated data columns (sensor1_avg, sensor1_max, sensor1_min)
+    if query_mode == 'aggregated':
+        df = _prepare_aggregated_data_for_viz(df)
+
     # Detect visualizable columns
     numeric_cols = _detect_numeric_columns(df)
     datetime_cols = _detect_datetime_columns(df)
@@ -280,26 +320,55 @@ def render_data_visualization(df: pd.DataFrame, table_name: str):
             st.rerun()
 
 
-def _prepare_plot_dataframe(df: pd.DataFrame, numeric_cols: list, x_col: str = None) -> pd.DataFrame:
+# Default threshold for LTTB downsampling (points to keep for chart rendering)
+LTTB_THRESHOLD = 5000
+
+
+def _prepare_plot_dataframe(
+    df: pd.DataFrame,
+    numeric_cols: list,
+    x_col: str = None,
+    y_cols: list = None,
+    downsample_threshold: int = LTTB_THRESHOLD
+) -> pd.DataFrame:
     """
-    Prepare DataFrame for plotting by converting numeric columns to float64.
+    Prepare DataFrame for plotting with LTTB downsampling for large datasets.
+
+    For datasets larger than downsample_threshold, applies LTTB algorithm
+    to reduce points while preserving visual characteristics (trends, peaks, valleys).
 
     Args:
         df: Original DataFrame
         numeric_cols: List of numeric column names
         x_col: X-axis column (typically datetime). If provided, will sort by this column.
+        y_cols: Y-axis columns to plot (used for LTTB downsampling)
+        downsample_threshold: Maximum points to keep (default: 5000)
 
     Returns:
-        Copy of DataFrame with numeric columns as float64, sorted by x_col if provided
+        DataFrame optimized for plotting, potentially downsampled
     """
     df_plot = df.copy()
+
+    # Convert numeric columns to float64
     for col in numeric_cols:
-        df_plot[col] = df_plot[col].astype('float64')
+        if col in df_plot.columns:
+            df_plot[col] = df_plot[col].astype('float64')
 
     # Sort by x_col to ensure lines are drawn correctly
     if x_col and x_col in df_plot.columns:
         df_plot = df_plot.sort_values(by=x_col).reset_index(drop=True)
         viz_logger.info(f"DataFrame sorted by '{x_col}' for proper line plotting")
+
+    # Apply LTTB downsampling for large datasets
+    if len(df_plot) > downsample_threshold and x_col and y_cols:
+        original_len = len(df_plot)
+        df_plot = lttb_downsample_multi_y(
+            df_plot,
+            threshold=downsample_threshold,
+            x_col=x_col,
+            y_cols=y_cols
+        )
+        viz_logger.info(f"LTTB downsampling applied: {original_len:,} → {len(df_plot):,} points")
 
     return df_plot
 
@@ -330,9 +399,9 @@ def _create_and_display_chart(
     # This is important because df might be a filtered dataframe
     available_numeric_cols = [col for col in numeric_cols if col in df.columns]
 
-    # Show spinner while preparing plot data (sorting and type conversion can be slow)
+    # Show spinner while preparing plot data (sorting, type conversion, and LTTB downsampling)
     with st.spinner(f"차트 데이터 준비 중... ({len(df):,}행 처리)"):
-        df_plot = _prepare_plot_dataframe(df, available_numeric_cols, x_col=x_col)
+        df_plot = _prepare_plot_dataframe(df, available_numeric_cols, x_col=x_col, y_cols=y_cols)
 
     try:
         # Calculate Y-axis range based on filtered column or all Y columns
@@ -386,6 +455,11 @@ def _create_and_display_chart(
             fig.update_xaxes(rangeslider_visible=False)
 
         st.plotly_chart(fig, use_container_width=True)
+
+        # Show LTTB downsampling info if applied
+        if len(df) > len(df_plot):
+            st.caption(f"📉 LTTB 다운샘플링 적용: {len(df):,}행 → {len(df_plot):,}포인트 (트렌드/이상치 보존)")
+
     except Exception as e:
         viz_logger.error(f"차트 생성 오류: {e}")
         import traceback
