@@ -1,159 +1,180 @@
-# UI Design: Admin and User Menus
+# UI 디자인: 관리자/사용자 메뉴
 
-## Overview
-Design two role-based menu groups for the current project:
-- Admin menu: user management, data synchronization, system status
-- User menu: chart viewing with data filtering
+## 개요
+현 프로젝트에 역할 기반 메뉴 그룹을 설계한다.
+- 관리자 메뉴: 사용자 관리, 데이터 동기화, 시스템 현황
+- 사용자 메뉴: 차트 조회 및 데이터 필터링
 
-Primary goals:
-- Clear separation of responsibilities by role
-- Fast access to monitoring and sync controls for admins
-- Flexible analysis experience for users with strong filtering
+주요 목표:
+- 역할별 책임을 명확히 분리
+- 관리자에게 모니터링/동기화 제어의 빠른 접근 제공
+- 사용자에게 강력한 필터 기반 분석 경험 제공
 
-## Information Architecture
-### Global layout
-- Top bar: logo/project name, environment badge, notifications, user profile
-- Left navigation: role-aware menu groups
-- Main content: page header, filters/actions, primary content, secondary panels
+## 정보 구조
+### 전역 레이아웃
+- 상단 바: 로고/프로젝트명, 환경 배지, 알림, 사용자 프로필
+- 좌측 내비게이션: 역할 인식 메뉴 그룹
+- 메인 콘텐츠: 페이지 헤더, 필터/액션, 주요 콘텐츠, 보조 패널
 
-### Navigation structure
-- Admin menu
-  - User Management
-  - Data Synchronization
-  - System Status
-- User menu
-  - Chart Explorer
+### 내비게이션 구조
+- 관리자 메뉴
+  - 사용자 관리
+  - 데이터 동기화
+  - 시스템 현황
+- 사용자 메뉴
+  - 차트 탐색
 
-Role behavior:
-- Users only see User menu items.
-- Admins see both groups with an Admin/User divider.
-- Optional role switcher in top bar for accounts with both roles.
+역할 동작:
+- 일반 사용자는 사용자 메뉴만 노출
+- 관리자는 관리자/사용자 구분을 모두 노출
+- 겸임 계정은 상단 역할 전환 스위처 제공(선택)
 
-## Screen Designs
+## 화면 설계
 
-### Admin > User Management
-Purpose: manage accounts, roles, and access status.
+### 관리자 > 사용자 관리
+목적: 계정, 역할, 접근 상태를 관리한다.
 
-Layout:
-- Page header: "User Management" with quick stats (Total, Active, Suspended)
-- Action row: Search, Filter, Add User
-- Main panel: user table
-- Right panel (optional): selected user details
+레이아웃:
+- 페이지 헤더: "사용자 관리" + 퀵 스탯(전체/활성/정지)
+- 액션 행: 검색, 필터, 사용자 추가
+- 메인 패널: 사용자 테이블
+- 우측 패널(선택): 선택 사용자 상세
 
-User table columns:
-- Name, Email, Role, Status, Last Login, Created Date, Actions
+테이블 컬럼:
+- 이름, 이메일, 역할, 상태, 최근 로그인, 생성일, 액션
 
-User detail panel:
-- Profile summary, role change, status toggle, reset password, audit trail
+상세 패널:
+- 프로필 요약, 역할 변경, 상태 토글, 비밀번호 초기화, 감사 로그
 
-Filters:
-- Role (Admin/User)
-- Status (Active/Suspended/Pending)
-- Last login (range)
+필터:
+- 역할(관리자/사용자)
+- 상태(활성/정지/대기)
+- 최근 로그인(기간)
 
-States:
-- Empty: "No users found" with clear filter button
-- Error: show message and retry
-
-
-### Admin > Data Synchronization
-Purpose: control and monitor sync jobs.
-
-Layout:
-- Page header: "Data Synchronization"
-- Action row: Run Now, Schedule, Sync Settings
-- Main panel: job list with statuses
-- Secondary panel: latest run details
-
-Job list columns:
-- Job Name, Source, Target, Status, Last Run, Duration, Next Run, Actions
-
-Job details:
-- Step timeline, logs preview, rows processed, warnings
-
-Controls:
-- Run Now (primary)
-- Pause/Resume
-- Edit schedule
-
-States:
-- Running: live progress bar, ETA
-- Failed: error summary with view logs and retry
+상태:
+- 빈 상태: "사용자가 없습니다" + 필터 초기화
+- 오류: 오류 메시지 및 재시도
 
 
-### Admin > System Status
-Purpose: monitor system health and performance.
+### 관리자 > 데이터 동기화
+목적: 동기화 작업을 제어하고 상태를 추적한다.
 
-Layout:
-- Page header: "System Status"
-- Summary tiles: Uptime, Sync Queue, Error Rate, Storage
-- Main panel: health checks list
-- Secondary panel: alerts and recent incidents
+레이아웃:
+- 페이지 헤더: "데이터 동기화"
+- 액션 행: 즉시 실행, 스케줄, 동기화 설정
+- 메인 패널: 작업 목록
+- 보조 패널: 최근 실행 상세
 
-Health checks list:
-- Service, Status (OK/Warn/Down), Last Check, Latency
+작업 목록 컬럼:
+- 작업명, 소스, 타깃, 상태, 최근 실행, 소요 시간, 다음 실행, 액션
 
-Charts:
-- Time series for errors and throughput
+작업 상세:
+- 단계 타임라인, 로그 미리보기, 처리 건수, 경고
 
-States:
-- Degraded: highlight affected services and recommended actions
+제어:
+- 즉시 실행(주요)
+- 일시 중지/재개
+- 스케줄 수정
 
-
-### User > Chart Explorer
-Purpose: explore charts with filters.
-
-Layout:
-- Page header: "Chart Explorer"
-- Left filter panel
-- Main panel: chart grid or single chart view
-- Secondary row: table view for underlying data
-
-Charts:
-- Line, bar, area, and pie
-- Metric selector (e.g., total rows, latency, errors)
-- Toggle between chart and table
-
-Filter panel fields:
-- Date range (quick picks + custom)
-- Category (multi-select)
-- Data source (multi-select)
-- Status (success/failure)
-- Keyword search
-- Advanced: numeric range sliders
-
-Chart interactions:
-- Hover tooltips
-- Click to drill down
-- Save filter presets
-
-States:
-- Empty: "No results for current filters"
-- Loading: skeleton chart
+상태:
+- 실행 중: 진행률, ETA
+- 실패: 오류 요약 + 로그 보기/재시도
 
 
-## Shared Components
-- Breadcrumbs in header
-- Primary/secondary buttons
-- Inline status badges (OK/Warn/Fail)
-- Global toast notifications
-- Pagination controls
+### 관리자 > 시스템 현황
+목적: 시스템 건강 상태와 성능을 모니터링한다.
 
-## Visual Style (Guidance)
-- Clean, data-first layout with strong hierarchy
-- High-contrast badges for status
-- Neutral background with subtle panel borders
+레이아웃:
+- 페이지 헤더: "시스템 현황"
+- 요약 타일: 가동 시간, 대기 큐, 오류율, 스토리지
+- 메인 패널: 헬스 체크 목록
+- 보조 패널: 알림 및 최근 인시던트
 
-## Accessibility
-- All actions available via keyboard
-- Clear focus states and large hit targets
-- Color + icon for status (not color-only)
+헬스 체크 목록:
+- 서비스, 상태(정상/주의/중단), 마지막 점검, 지연 시간
 
-## Responsive Behavior
-- Left nav collapses to icon rail on smaller screens
-- Filter panel collapses into a drawer
-- Tables become card lists on mobile
+차트:
+- 오류/처리량 시계열
 
-## Permissions Summary
-- Admin menu: only visible to Admin role
-- User menu: visible to all authenticated users
+상태:
+- 저하: 영향 서비스 강조 및 권장 조치
+
+
+### 사용자 > 차트 탐색
+목적: 필터 기반으로 차트를 탐색한다.
+
+레이아웃:
+- 페이지 헤더: "차트 탐색"
+- 좌측 필터 패널
+- 메인 패널: 차트 그리드 또는 단일 차트
+- 보조 영역: 원본 데이터 테이블
+
+차트:
+- 라인, 바, 에어리어, 파이
+- 지표 선택(예: 총 건수, 지연, 오류)
+- 차트/테이블 전환
+
+필터 패널 항목:
+- 기간(빠른 선택 + 사용자 지정)
+- 카테고리(다중 선택)
+- 데이터 소스(다중 선택)
+- 상태(성공/실패)
+- 키워드 검색
+- 고급: 수치 범위 슬라이더
+
+차트 상호작용:
+- 툴팁
+- 클릭 드릴다운
+- 필터 프리셋 저장
+
+상태:
+- 빈 상태: "현재 필터 결과 없음"
+- 로딩: 스켈레톤 차트
+
+
+## 공유 컴포넌트
+- 헤더 브레드크럼
+- 기본/보조 버튼
+- 상태 배지(OK/Warn/Fail)
+- 전역 토스트 알림
+- 페이지네이션
+
+## 시각 스타일(가이드)
+- 데이터 중심 레이아웃과 강한 계층 구조
+- 상태 배지는 높은 대비로 강조
+- 중립 배경 + 얇은 패널 보더
+
+## 접근성
+- 모든 액션 키보드 접근 가능
+- 명확한 포커스 상태와 충분한 클릭 영역
+- 색상만으로 상태를 구분하지 않음(아이콘 병행)
+
+## 반응형
+- 좌측 내비게이션은 아이콘 레일로 축소
+- 필터 패널은 드로어로 전환
+- 테이블은 모바일에서 카드 리스트로 전환
+
+## 권한 요약
+- 관리자 메뉴: 관리자 역할만 노출
+- 사용자 메뉴: 인증 사용자 모두 노출
+
+## 비교 분석 (Codex vs Gemini)
+Gemini의 좋은 점:
+- 역할 기반 IA를 플로우차트로 제시해 이해가 빠름
+- 로그인/진입 화면과 역할 라우팅 포함
+- 동기화 제어 패널과 최근 이력 등 운영 요소가 구체적
+- 시스템 현황에 구체 지표와 로그 뷰어 포함
+- 사용자 모드에 샘플링/CSV 다운로드 제안
+
+Codex의 좋은 점:
+- 권한 및 역할 동작을 명확히 명시
+- 빈 상태/오류/로딩 상태를 포함
+- 공유 컴포넌트와 접근성 가이드 포함
+- 차트 상호작용과 필터 프리셋을 제안
+
+보완 고려 사항:
+- Gemini는 특정 프레임워크(Streamlit)를 가정함
+- Gemini는 반응형/접근성 언급이 부족함
+- Codex는 로그인/진입 흐름이 없으며 필요 시 추가 검토 필요
+- Codex의 시스템 지표는 추상적이며 구체 지표 보강 여지 있음
+- Codex는 사용자 영역의 내보내기/샘플링 항목이 명시되어 있지 않음
