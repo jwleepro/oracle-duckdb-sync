@@ -7,9 +7,9 @@ table metadata.
 
 import streamlit as st
 import pandas as pd
-from oracle_duckdb_sync.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.config import Config
-from oracle_duckdb_sync.data_converter import (
+from oracle_duckdb_sync.data.converter import (
     detect_and_convert_types,
     detect_convertible_columns,
     convert_selected_columns

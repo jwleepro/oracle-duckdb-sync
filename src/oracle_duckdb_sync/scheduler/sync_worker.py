@@ -4,7 +4,7 @@ import traceback
 import time
 import datetime
 from oracle_duckdb_sync.config import Config
-from oracle_duckdb_sync.sync_engine import SyncEngine
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.logger import setup_logger
 
 

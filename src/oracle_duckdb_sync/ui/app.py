@@ -2,19 +2,19 @@ import streamlit as st
 import time
 from oracle_duckdb_sync import visualization
 from oracle_duckdb_sync.config import load_config
-from oracle_duckdb_sync.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.logger import setup_logger
-from oracle_duckdb_sync.ui_handlers import (
+from oracle_duckdb_sync.ui.handlers import (
     handle_test_sync,
     handle_full_sync,
     render_sync_status_ui
 )
-from oracle_duckdb_sync.session_state import (
+from oracle_duckdb_sync.ui.session_state import (
     initialize_session_state,
     release_sync_lock,
     SYNC_PROGRESS_REFRESH_INTERVAL
 )
-from oracle_duckdb_sync.data_query import (
+from oracle_duckdb_sync.data.query import (
     get_available_tables,
     determine_default_table_name,
     get_table_row_count,
@@ -22,7 +22,7 @@ from oracle_duckdb_sync.data_query import (
     query_duckdb_table_cached,
     query_duckdb_table_aggregated
 )
-from oracle_duckdb_sync.visualization import render_data_visualization
+from oracle_duckdb_sync.ui.visualization import render_data_visualization
 
 # Set up logger for app.py
 app_logger = setup_logger('StreamlitApp')

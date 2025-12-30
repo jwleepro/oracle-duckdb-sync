@@ -10,7 +10,7 @@ import pandas as pd
 import plotly.express as px
 import numpy as np
 from oracle_duckdb_sync.logger import setup_logger
-from oracle_duckdb_sync.lttb import lttb_downsample_multi_y
+from oracle_duckdb_sync.data.lttb import lttb_downsample_multi_y
 
 # Set up logger
 viz_logger = setup_logger('Visualization')

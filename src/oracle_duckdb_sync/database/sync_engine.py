@@ -3,10 +3,10 @@ import json
 import os
 import logging
 from oracle_duckdb_sync.config import Config
-from oracle_duckdb_sync.oracle_source import OracleSource
-from oracle_duckdb_sync.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.oracle_source import OracleSource
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.logger import setup_logger
-from oracle_duckdb_sync.state_file_manager import StateFileManager
+from oracle_duckdb_sync.state.file_manager import StateFileManager
 
 class SyncEngine:
     def __init__(self, config: Config):

@@ -7,8 +7,8 @@ app.py의 복잡도를 줄이고 코드 재사용성을 높이기 위해 분리�
 
 import streamlit as st
 import traceback
-from oracle_duckdb_sync.sync_worker import SyncWorker
-from oracle_duckdb_sync.sync_state import SyncLock
+from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
+from oracle_duckdb_sync.state.sync_state import SyncLock
 from oracle_duckdb_sync.logger import setup_logger
 
 # Set up logger
