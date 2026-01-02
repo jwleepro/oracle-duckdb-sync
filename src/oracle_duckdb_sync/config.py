@@ -19,6 +19,9 @@ class Config:
     sync_duckdb_table: str = ""
     sync_primary_key: str = "ID"
     sync_time_column: str = "TIMESTAMP_COL"
+    
+    # DuckDB specific time column (separates Oracle schema concerns from DuckDB queries)
+    duckdb_time_column: str = "TIMESTAMP_COL"
 
     # Sync performance settings
     sync_batch_size: int = 10000
@@ -86,6 +89,16 @@ def load_config(load_dotenv_file: bool = True) -> Config:
     # If duckdb table not specified, use oracle table name in lowercase without schema
     if not sync_duckdb_table and sync_oracle_table:
         sync_duckdb_table = sync_oracle_table.lower()
+    
+    # Get DuckDB time column with fallback to SYNC_TIME_COLUMN
+    duckdb_time_column_env = os.getenv("DUCKDB_TIME_COLUMN")
+    if duckdb_time_column_env:
+        # Explicitly configured DUCKDB_TIME_COLUMN takes precedence
+        duckdb_time_column = duckdb_time_column_env
+    else:
+        # Fallback: parse first column from SYNC_TIME_COLUMN
+        sync_time_column = os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL")
+        duckdb_time_column = sync_time_column.split(',')[0].strip()
 
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
@@ -102,6 +115,7 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         sync_duckdb_table=sync_duckdb_table,
         sync_primary_key=os.getenv("SYNC_PRIMARY_KEY", "ID"),
         sync_time_column=os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL"),
+        duckdb_time_column=duckdb_time_column,
 
         # Performance settings
         sync_batch_size=int(os.getenv("SYNC_BATCH_SIZE", "10000")),

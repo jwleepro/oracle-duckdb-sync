@@ -193,3 +193,54 @@ def test_020_file_path_settings_from_env(setup_env, monkeypatch):
     assert config.sync_state_path == os.path.join("/custom/path", "custom_state.json")
     assert config.schema_mapping_path == os.path.join("/custom/path", "custom_schema.json")
     assert config.sync_progress_path == os.path.join("/custom/path", "custom_progress.json")
+
+
+def test_021_duckdb_time_column_from_env(setup_env, monkeypatch):
+    """TEST-021: DUCKDB_TIME_COLUMN 환경 변수로부터 로드"""
+    monkeypatch.setenv("DUCKDB_TIME_COLUMN", "TRAN_TIME")
+
+    config = load_config()
+
+    assert config.duckdb_time_column == "TRAN_TIME"
+
+
+def test_022_duckdb_time_column_default_value(setup_env):
+    """TEST-022: DUCKDB_TIME_COLUMN 기본값 확인"""
+    config = load_config()
+
+    # DUCKDB_TIME_COLUMN이 설정되지 않으면 기본값 사용
+    assert config.duckdb_time_column == "TIMESTAMP_COL"
+
+
+def test_023_duckdb_time_column_fallback_from_sync_time_column(setup_env, monkeypatch):
+    """TEST-023: DUCKDB_TIME_COLUMN 미설정 시 SYNC_TIME_COLUMN에서 첫 번째 컬럼 추출"""
+    monkeypatch.setenv("SYNC_TIME_COLUMN", "FACTORY, TRAN_TIME")
+    # DUCKDB_TIME_COLUMN은 설정하지 않음
+    monkeypatch.delenv("DUCKDB_TIME_COLUMN", raising=False)
+
+    config = load_config()
+
+    # SYNC_TIME_COLUMN의 첫 번째 컬럼 (FACTORY)을 fallback으로 사용
+    assert config.duckdb_time_column == "FACTORY"
+
+
+def test_024_duckdb_time_column_explicit_overrides_sync_time_column(setup_env, monkeypatch):
+    """TEST-024: DUCKDB_TIME_COLUMN이 명시되면 SYNC_TIME_COLUMN 무시"""
+    monkeypatch.setenv("SYNC_TIME_COLUMN", "FACTORY, TRAN_TIME")
+    monkeypatch.setenv("DUCKDB_TIME_COLUMN", "TRAN_TIME")
+
+    config = load_config()
+
+    # 명시적으로 설정된 DUCKDB_TIME_COLUMN 사용
+    assert config.duckdb_time_column == "TRAN_TIME"
+
+
+def test_025_duckdb_time_column_handles_whitespace(setup_env, monkeypatch):
+    """TEST-025: SYNC_TIME_COLUMN fallback 시 공백 처리"""
+    monkeypatch.setenv("SYNC_TIME_COLUMN", "  FACTORY  ,  TRAN_TIME  ")
+    monkeypatch.delenv("DUCKDB_TIME_COLUMN", raising=False)
+
+    config = load_config()
+
+    # 공백이 제거된 첫 번째 컬럼 사용
+    assert config.duckdb_time_column == "FACTORY"
