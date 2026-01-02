@@ -113,45 +113,118 @@ streamlit run src/oracle_duckdb_sync/ui/app.py
 
 **프로젝트 구조**:
 
-프로젝트는 2단계 디렉토리 구조로 구성되어 있습니다:
+프로젝트는 Clean Architecture 패턴을 따라 레이어별로 구성되어 있습니다:
 
 ```
 src/oracle_duckdb_sync/
 ├── config.py, logger.py          # 루트: 공통 설정 및 로거
-├── ui/                            # UI 및 Streamlit 컴포넌트
+│
+├── application/                   # 🆕 Application Service Layer (비즈니스 로직)
+│   ├── ui_presenter.py           # UI 프레임워크 추상 인터페이스
+│   ├── query_service.py          # 데이터 조회 서비스 (UI 독립적)
+│   └── sync_service.py           # 동기화 서비스 (UI 독립적)
+│
+├── adapters/                      # 🆕 Framework Adapters (구현체)
+│   └── streamlit_adapter.py      # Streamlit 구체 구현
+│
+├── ui/                            # Presentation Layer (Streamlit UI)
 │   ├── app.py                     # 메인 Streamlit 앱
 │   ├── handlers.py                # UI 이벤트 핸들러
 │   ├── session_state.py           # Streamlit 세션 상태 관리
 │   └── visualization.py           # 데이터 시각화
-├── database/                      # 데이터베이스 연결 및 동기화
+│
+├── database/                      # Data Access Layer
 │   ├── oracle_source.py           # Oracle 연결
 │   ├── duckdb_source.py           # DuckDB 연결
 │   └── sync_engine.py             # 동기화 엔진
-├── scheduler/                     # 스케줄링 및 백그라운드 작업
+│
+├── scheduler/                     # Background Tasks
 │   ├── scheduler.py               # 작업 스케줄러
 │   └── sync_worker.py             # 백그라운드 워커
-├── data/                          # 데이터 처리 및 쿼리
+│
+├── data/                          # Data Processing Layer
+│   ├── query_core.py              # 🆕 UI 독립적 쿼리 함수
+│   ├── query.py                   # 레거시 쿼리 (backward compatibility)
 │   ├── converter.py               # 타입 변환
-│   ├── query.py                   # DuckDB 쿼리
 │   └── lttb.py                    # LTTB 다운샘플링
-└── state/                         # 상태 관리
+│
+└── state/                         # State Management
     ├── sync_state.py              # 동기화 상태 및 락
     └── file_manager.py            # 파일 I/O 관리
 ```
+
+**아키텍처 레이어**:
+
+```
+┌─────────────────────────────────────┐
+│   Presentation Layer                │
+│   - Streamlit UI (현재)             │
+│   - Flask/FastAPI (미래 가능)       │
+└─────────────────────────────────────┘
+           ↓ uses
+┌─────────────────────────────────────┐
+│   Adapters                          │
+│   - StreamlitAdapter                │
+│   - (다른 프레임워크 쉽게 추가 가능) │
+└─────────────────────────────────────┘
+           ↓ implements
+┌─────────────────────────────────────┐
+│   Application Services              │
+│   - QueryService                    │
+│   - SyncService                     │
+│   - UI Presenter Interface          │
+└─────────────────────────────────────┘
+           ↓ uses
+┌─────────────────────────────────────┐
+│   Domain/Data Layer                 │
+│   - query_core (UI 독립적)          │
+│   - DuckDBSource                    │
+│   - SyncEngine                      │
+└─────────────────────────────────────┘
+```
+
+**주요 설계 원칙**:
+
+1. **관심사 분리**: UI, 비즈니스 로직, 데이터 접근이 명확히 분리됨
+2. **의존성 역전**: Application Layer는 UI 프레임워크에 의존하지 않음
+3. **프레임워크 독립성**: Streamlit을 다른 UI로 쉽게 교체 가능
+4. **테스트 용이성**: 각 레이어를 독립적으로 테스트 가능
+
+자세한 내용은 `docs/ui_separation_architecture.md` 참조
 
 **Import 방법**:
 
 새로운 코드 작성 시 다음과 같이 import하세요:
 
 ```python
-# 권장: 명시적 경로 사용
-from oracle_duckdb_sync.database.sync_engine import SyncEngine
-from oracle_duckdb_sync.data.query import query_duckdb_table
-from oracle_duckdb_sync.ui.handlers import handle_test_sync
+# 🆕 Application Services (UI 독립적 비즈니스 로직)
+from oracle_duckdb_sync.application.query_service import QueryService
+from oracle_duckdb_sync.application.sync_service import SyncService
 
-# 하위 호환성: 기존 코드도 동작
-from oracle_duckdb_sync import SyncEngine, query_duckdb_table
+# 🆕 UI Adapters (프레임워크 구현체)
+from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
+
+# Data Layer (UI 독립적 데이터 접근)
+from oracle_duckdb_sync.data.query_core import (
+    get_available_tables,
+    query_table_with_conversion,
+    query_table_aggregated
+)
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
+
+# UI Layer (Streamlit 전용)
+from oracle_duckdb_sync.ui.handlers import handle_test_sync
+from oracle_duckdb_sync.ui.visualization import render_data_visualization
+
+# 하위 호환성: 기존 레거시 코드도 동작
+from oracle_duckdb_sync.data.query import query_duckdb_table  # deprecated
 ```
+
+**새 코드 작성 시 권장사항**:
+
+- UI와 무관한 로직은 `application/` 서비스 사용
+- UI 표시는 `adapters/` 통해 추상화
+- 직접 `streamlit`을 import하지 말고 adapter 사용
 
 **3단계: UI 사용법**
 

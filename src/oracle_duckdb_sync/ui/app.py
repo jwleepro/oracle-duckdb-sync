@@ -13,11 +13,14 @@ from oracle_duckdb_sync.ui.session_state import (
     release_sync_lock,
     SYNC_PROGRESS_REFRESH_INTERVAL
 )
-from oracle_duckdb_sync.data.query import (
+from oracle_duckdb_sync.data.query_core import (
     get_available_tables,
     determine_default_table_name,
     get_table_row_count,
-    query_duckdb_table,
+    query_table_with_conversion
+)
+# Import aggregated query from old module until migrated
+from oracle_duckdb_sync.data.query import (
     query_duckdb_table_cached,
     query_duckdb_table_aggregated
 )
