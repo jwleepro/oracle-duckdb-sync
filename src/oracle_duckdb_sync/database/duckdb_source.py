@@ -33,6 +33,14 @@ class DuckDBSource:
     def ping(self):
         return self.conn.execute("SELECT 1").fetchall()
 
+    def get_connection(self):
+        """Get the DuckDB connection object
+        
+        Returns:
+            duckdb.DuckDBPyConnection: The active DuckDB connection
+        """
+        return self.conn
+
     def ensure_database(self):
         """DuckDB는 파일 기반이므로 별도 DB 생성이 필요없음.
         호환성을 위해 빈 메서드로 유지."""
@@ -59,13 +67,6 @@ class DuckDBSource:
         if params:
             return self.conn.execute(query, params).fetchall()
         return self.conn.execute(query).fetchall()
-
-
-        if "DATE" in oracle_type:
-            return "TIMESTAMP"
-        if "TIMESTAMP" in oracle_type:
-            return "TIMESTAMP"
-        return "VARCHAR"
 
     def insert_batch(self, table: str, data: list, column_names: list = None, logger=None):
         """Insert batch of data into DuckDB table using Pandas DataFrame

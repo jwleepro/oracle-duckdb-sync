@@ -90,15 +90,14 @@ def load_config(load_dotenv_file: bool = True) -> Config:
     if not sync_duckdb_table and sync_oracle_table:
         sync_duckdb_table = sync_oracle_table.lower()
     
-    # Get DuckDB time column with fallback to SYNC_TIME_COLUMN
-    duckdb_time_column_env = os.getenv("DUCKDB_TIME_COLUMN")
-    if duckdb_time_column_env:
-        # Explicitly configured DUCKDB_TIME_COLUMN takes precedence
-        duckdb_time_column = duckdb_time_column_env
-    else:
-        # Fallback: parse first column from SYNC_TIME_COLUMN
-        sync_time_column = os.getenv("SYNC_TIME_COLUMN", "TIMESTAMP_COL")
-        duckdb_time_column = sync_time_column.split(',')[0].strip()
+    # Get DuckDB time column - REQUIRED configuration
+    duckdb_time_column = os.getenv("DUCKDB_TIME_COLUMN")
+    if not duckdb_time_column:
+        raise ValueError(
+            "DUCKDB_TIME_COLUMN must be explicitly configured in .env file. "
+            "This specifies the time column name in DuckDB for queries and aggregations. "
+            "Example: DUCKDB_TIME_COLUMN=TRAN_TIME"
+        )
 
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
