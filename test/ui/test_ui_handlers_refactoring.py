@@ -88,9 +88,9 @@ class TestAcquireSyncLockWithUI:
 
 class TestStartSyncWorker:
     """동기화 워커 시작 헬퍼 함수 테스트"""
-    
+
     @patch('oracle_duckdb_sync.ui.handlers.st')
-    @patch('oracle_duckdb_sync.ui_handlers.SyncWorker')
+    @patch('oracle_duckdb_sync.ui.handlers.SyncWorker')
     def test_worker_starts_successfully(self, mock_worker_class, mock_st):
         """워커가 성공적으로 시작되면 세션 상태를 업데이트한다"""
         mock_st.session_state = Mock()
@@ -119,7 +119,7 @@ class TestStartSyncWorker:
         mock_st.rerun.assert_called_once()
     
     @patch('oracle_duckdb_sync.ui.handlers.st')
-    @patch('oracle_duckdb_sync.ui_handlers.SyncWorker')
+    @patch('oracle_duckdb_sync.ui.handlers.SyncWorker')
     def test_worker_sets_expected_rows_for_test_sync(self, mock_worker_class, mock_st):
         """테스트 동기화 시 expected_rows가 설정된다"""
         mock_st.session_state = Mock()
@@ -141,7 +141,7 @@ class TestHandleSyncError:
     """동기화 에러 처리 헬퍼 함수 테스트"""
     
     @patch('oracle_duckdb_sync.ui.handlers.st')
-    @patch('oracle_duckdb_sync.ui_handlers.traceback')
+    @patch('oracle_duckdb_sync.ui.handlers.traceback')
     def test_error_releases_lock_and_shows_message(self, mock_traceback, mock_st):
         """에러 발생 시 락을 해제하고 에러 메시지를 표시한다"""
         mock_traceback.format_exc.return_value = "Traceback..."
@@ -159,7 +159,7 @@ class TestHandleSyncError:
         assert "동기화 시작 실패" in mock_st.sidebar.error.call_args[0][0]
     
     @patch('oracle_duckdb_sync.ui.handlers.st')
-    @patch('oracle_duckdb_sync.ui_handlers.traceback')
+    @patch('oracle_duckdb_sync.ui.handlers.traceback')
     def test_error_displays_traceback(self, mock_traceback, mock_st):
         """에러 발생 시 상세 트레이스백을 표시한다"""
         mock_traceback.format_exc.return_value = "Detailed traceback"

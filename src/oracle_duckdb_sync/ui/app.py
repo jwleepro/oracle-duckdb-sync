@@ -78,7 +78,7 @@ def main():
     # Use .env configuration
     table_name = config.sync_oracle_table
     primary_key = config.sync_primary_key
-    time_column = config.sync_time_column
+    time_column = config.duckdb_time_column  # Use DuckDB-specific time column
     
     # Test sync button with row limit
     st.sidebar.markdown("---")

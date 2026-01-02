@@ -880,7 +880,7 @@ def query_duckdb_table_aggregated(
             # If no numeric columns found, try to detect convertible VARCHAR columns
             if not numeric_cols:
                 query_logger.info("No native numeric columns found, checking VARCHAR columns...")
-                from oracle_duckdb_sync.data_converter import is_numeric_string
+                from oracle_duckdb_sync.data.converter import is_numeric_string
 
                 varchar_cols = [
                     col for col in sample.select_dtypes(include=['object', 'string']).columns

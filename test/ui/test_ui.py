@@ -10,11 +10,11 @@ def test_120_streamlit_page_config():
          patch("streamlit.subheader") as mock_subheader, \
          patch("streamlit.text_input") as mock_text_input, \
          patch("streamlit.button") as mock_button, \
-         patch("oracle_duckdb_sync.app.load_config") as mock_load_config, \
-         patch("oracle_duckdb_sync.app.DuckDBSource") as mock_duckdb:
+         patch("oracle_duckdb_sync.ui.app.load_config") as mock_load_config, \
+         patch("oracle_duckdb_sync.ui.app.DuckDBSource") as mock_duckdb:
         
         # Import and run main()
-        from oracle_duckdb_sync.app import main
+        from oracle_duckdb_sync.ui.app import main
         main()
         
         # Verify that set_page_config was called

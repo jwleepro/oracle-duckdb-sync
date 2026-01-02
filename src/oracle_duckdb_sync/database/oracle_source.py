@@ -16,20 +16,44 @@ def _ensure_oracle_client():
     global _oracle_client_initialized
     if not _oracle_client_initialized:
         try:
-            # Oracle Home 경로
+            # Oracle Home 경로 확인
             oracle_home = os.environ.get('ORACLE_HOME')
             if not oracle_home:
-                raise ValueError("ORACLE_HOME 환경 변수가 설정되지 않았습니다.")
-            lib_dir = os.path.join(oracle_home, 'bin')
-            
+                # ORACLE_HOME이 없으면 기본 경로 시도
+                default_paths = [
+                    r'D:\instantclient_23_0',
+                    r'C:\instantclient_23_0',
+                    r'D:\oracle\instantclient',
+                    r'C:\oracle\instantclient'
+                ]
+                for path in default_paths:
+                    if os.path.exists(path):
+                        oracle_home = path
+                        import logging
+                        logger = logging.getLogger("OracleSource")
+                        logger.info(f"ORACLE_HOME not set, using detected path: {oracle_home}")
+                        break
+
+                if not oracle_home:
+                    raise ValueError(
+                        "ORACLE_HOME environment variable not set and no Oracle Instant Client found. "
+                        "Please set ORACLE_HOME or install Oracle Instant Client."
+                    )
+
+            lib_dir = os.path.join(oracle_home, 'bin') if os.path.exists(os.path.join(oracle_home, 'bin')) else oracle_home
+
             # TNS_ADMIN이 설정되어 있으면 해당 디렉토리를 사용
             config_dir = os.environ.get('TNS_ADMIN')
-            
+
             if config_dir:
                 oracledb.init_oracle_client(lib_dir=lib_dir, config_dir=config_dir)
             else:
                 oracledb.init_oracle_client(lib_dir=lib_dir)
             _oracle_client_initialized = True
+
+            import logging
+            logger = logging.getLogger("OracleSource")
+            logger.info(f"Oracle thick client initialized successfully (lib_dir: {lib_dir})")
         except Exception as e:
             # 이미 초기화되었거나 Oracle Client가 없는 경우
             # Thin 모드로 폴백 (Oracle 12.1 이상만 지원)
@@ -37,6 +61,10 @@ def _ensure_oracle_client():
             logger = logging.getLogger("OracleSource")
             logger.warning(f"Failed to initialize Oracle thick client: {e}")
             logger.warning("Falling back to thin mode (Oracle 12.1+ only)")
+            logger.error(
+                "ERROR: Your Oracle database version may not support thin mode. "
+                "Please set ORACLE_HOME environment variable to use thick mode for Oracle 11g/11.2 compatibility."
+            )
 
 def datetime_handler(value):
     if isinstance(value, datetime.datetime):

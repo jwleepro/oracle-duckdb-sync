@@ -5,6 +5,7 @@ Streamlit UI 이벤트 핸들러 모듈
 app.py의 복잡도를 줄이고 코드 재사용성을 높이기 위해 분리되었습니다.
 """
 
+import os
 import streamlit as st
 import traceback
 from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
@@ -22,38 +23,48 @@ handler_logger = setup_logger('UIHandlers')
 def _validate_table_name(table_name: str) -> bool:
     """
     테이블명 검증 헬퍼 함수
-    
+
     Args:
         table_name: 검증할 테이블명
-        
+
     Returns:
         bool: 유효하면 True, 그렇지 않으면 False
     """
     if not table_name:
+        handler_logger.warning("Table name validation failed: No table name provided")
         st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
         return False
+    handler_logger.info(f"Table name validated: {table_name}")
     return True
 
 
 def _acquire_sync_lock_with_ui(sync_lock: SyncLock):
     """
     UI 에러 메시지를 포함한 중앙화된 락 획득
-    
+
     Args:
         sync_lock: 동기화 락 객체
-        
+
     Returns:
         SyncLock: 락 획득 성공 시 sync_lock 객체, 실패 시 None
     """
     if sync_lock.is_locked():
         lock_info = sync_lock.get_lock_info()
+        handler_logger.warning(
+            f"Sync blocked: Another sync operation is running "
+            f"(PID: {lock_info.get('pid', 'unknown')}, "
+            f"Hostname: {lock_info.get('hostname', 'unknown')}, "
+            f"Started: {lock_info.get('timestamp', 'unknown')})"
+        )
         st.sidebar.warning(f"⚠️ 다른 동기화 작업이 실행 중입니다. (PID: {lock_info.get('pid', 'unknown')})")
         return None
-    
+
     if not sync_lock.acquire(timeout=1):
+        handler_logger.error("Failed to acquire sync lock after 1 second timeout")
         st.sidebar.error("❌ 동기화 잠금을 획득할 수 없습니다.")
         return None
-    
+
+    handler_logger.info(f"Sync lock acquired successfully (PID: {os.getpid()})")
     return sync_lock
 
 
@@ -191,14 +202,12 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
             if not last_sync_time:
                 last_sync_time = "2020-01-01 00:00:00"
             
-            # Get first column from time_column (could be composite)
-            time_col = time_column.split(',')[0].strip() if time_column else "TIMESTAMP_COL"
-            
+            # time_column is already parsed by config.duckdb_time_column
             sync_params = {
                 'sync_type': 'incremental',
                 'oracle_table': table_name,
                 'duckdb_table': duckdb_table,
-                'time_column': time_col,
+                'time_column': time_column,  # Already parsed, no need to split
                 'last_value': last_sync_time
             }
             handler_logger.info(f"Performing incremental sync from: {last_sync_time}")
@@ -271,6 +280,12 @@ def render_completed_status():
     """
     동기화 완료 상태 UI 렌더링
     """
+    if st.session_state.sync_result:
+        result = st.session_state.sync_result
+        handler_logger.info(f"Sync completed successfully: {result.get('total_rows', 0)} rows processed")
+    else:
+        handler_logger.info("Sync completed successfully")
+
     st.sidebar.success("✅ 동기화 완료!")
     if st.session_state.sync_result:
         result = st.session_state.sync_result
@@ -285,6 +300,10 @@ def render_error_status():
     """
     동기화 에러 상태 UI 렌더링
     """
+    if st.session_state.sync_error:
+        error = st.session_state.sync_error
+        handler_logger.error(f"Sync error displayed to user: {error.get('exception', 'Unknown error')}")
+
     st.sidebar.error("❌ 동기화 실패")
     if st.session_state.sync_error:
         error = st.session_state.sync_error

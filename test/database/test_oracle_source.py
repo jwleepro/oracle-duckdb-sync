@@ -16,21 +16,22 @@ def mock_config():
     )
 
 def test_020_oracle_connection_creation(mock_config):
-    """TEST-020: Oracle DB 연결 객체 생성 확인"""
+    """TEST-020: Oracle DB 연결 객체 생성 확인 (DSN 방식)"""
     with patch("oracledb.connect") as mock_connect:
         source = OracleSource(mock_config)
         source.connect()
-        
+
         # Verify connect was called once
         mock_connect.assert_called_once()
-        
-        # Verify connection parameters are correct
+
+        # Verify connection parameters are correct (DSN format)
         call_kwargs = mock_connect.call_args[1]
-        assert call_kwargs["host"] == mock_config.oracle_host
-        assert call_kwargs["port"] == mock_config.oracle_port
-        assert call_kwargs["service_name"] == mock_config.oracle_service_name
         assert call_kwargs["user"] == mock_config.oracle_user
         assert call_kwargs["password"] == mock_config.oracle_password
+
+        # Verify DSN is correctly formatted: host:port/service_name
+        expected_dsn = f"{mock_config.oracle_host}:{mock_config.oracle_port}/{mock_config.oracle_service_name}"
+        assert call_kwargs["dsn"] == expected_dsn
 
 def test_021_oracle_connection_failure(mock_config):
     """TEST-021: 연결 실패 시 예외 처리 확인"""

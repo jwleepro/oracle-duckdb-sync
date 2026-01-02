@@ -89,9 +89,9 @@ class TestCachedConvertDataframe:
 class TestQueryDuckDBTableCached:
     """Tests for query_duckdb_table_cached function."""
 
-    @patch('oracle_duckdb_sync.data_query.st')
-    @patch('oracle_duckdb_sync.data_query._cached_convert_dataframe')
-    @patch('oracle_duckdb_sync.data_query._fetch_raw_data')
+    @patch('oracle_duckdb_sync.data.query.st')
+    @patch('oracle_duckdb_sync.data.query._cached_convert_dataframe')
+    @patch('oracle_duckdb_sync.data.query._fetch_raw_data')
     def test_successful_query_and_conversion(self, mock_fetch, mock_convert, mock_st):
         """Should fetch data and convert types successfully."""
         mock_duckdb = Mock()
@@ -119,8 +119,8 @@ class TestQueryDuckDBTableCached:
         assert len(result['df_converted']) == 2
         mock_st.success.assert_called()
 
-    @patch('oracle_duckdb_sync.data_query.st')
-    @patch('oracle_duckdb_sync.data_query._fetch_raw_data')
+    @patch('oracle_duckdb_sync.data.query.st')
+    @patch('oracle_duckdb_sync.data.query._fetch_raw_data')
     def test_handles_fetch_failure(self, mock_fetch, mock_st):
         """Should handle fetch failure gracefully."""
         mock_duckdb = Mock()
@@ -140,9 +140,9 @@ class TestQueryDuckDBTableCached:
         assert result['df_converted'] is None
         mock_st.warning.assert_called()
 
-    @patch('oracle_duckdb_sync.data_query.st')
-    @patch('oracle_duckdb_sync.data_query._cached_convert_dataframe')
-    @patch('oracle_duckdb_sync.data_query._fetch_raw_data')
+    @patch('oracle_duckdb_sync.data.query.st')
+    @patch('oracle_duckdb_sync.data.query._cached_convert_dataframe')
+    @patch('oracle_duckdb_sync.data.query._fetch_raw_data')
     def test_handles_conversion_failure(self, mock_fetch, mock_convert, mock_st):
         """Should handle type conversion failure gracefully."""
         mock_duckdb = Mock()

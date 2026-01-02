@@ -2,9 +2,12 @@
 Playwright automated test for Streamlit UI responsiveness.
 Tests if the UI locks up after chart rendering.
 """
+import pytest
 import time
 from playwright.sync_api import sync_playwright, expect
 
+@pytest.mark.e2e
+@pytest.mark.skip(reason="Requires Streamlit app running on localhost:8501")
 def test_streamlit_ui_responsiveness():
     """
     Test that the Streamlit UI remains responsive after chart rendering.
