@@ -213,7 +213,7 @@ def test_131_incremental_sync_e2e_real_db():
             
             # Mock schema operations for full_sync
             schema = oracle_source.get_table_schema(oracle_table)
-            mock_duckdb.map_oracle_type = MagicMock(return_value="VARCHAR")
+            # map_oracle_type is now in SyncEngine, not DuckDBSource
             mock_duckdb.build_create_table_query = MagicMock(return_value="CREATE TABLE test")
             mock_duckdb.execute = MagicMock()
             

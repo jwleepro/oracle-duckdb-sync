@@ -14,7 +14,7 @@ from oracle_duckdb_sync.data.converter import (
     detect_convertible_columns,
     convert_selected_columns
 )
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 
 # Set up logger
 query_logger = setup_logger('DataQuery')
@@ -55,27 +55,24 @@ def determine_default_table_name(config: Config, table_list: list) -> str:
     """
     Determine default table name for query based on configuration.
     
+    DuckDB should not depend on Oracle configuration. It only uses
+    the DuckDB table name from config or the first available table.
+
     Args:
         config: Configuration object
         table_list: List of available tables
-    
+
     Returns:
-        Default table name
+        Default table name (from SYNC_DUCKDB_TABLE config or first available table)
     """
+    # Use SYNC_DUCKDB_TABLE if configured
     if config.sync_duckdb_table:
         return config.sync_duckdb_table
-    elif config.sync_oracle_table:
-        # Remove schema prefix and convert to lowercase
-        oracle_table_parts = ""
-        if config.sync_oracle_schema:
-            oracle_table_parts = config.sync_oracle_schema + "." + config.sync_oracle_table
-        else:
-            oracle_table_parts = config.sync_oracle_table
-        
-        oracle_table_parts += config.sync_oracle_table
-        return oracle_table_parts[-1].lower()  # Get last part (table name) and lowercase
+    # Otherwise, use the first available table in DuckDB
+    elif table_list:
+        return table_list[0]
     else:
-        return table_list[0] if table_list else "sync_table"
+        return "sync_table"
 
 
 def get_table_row_count(duckdb: DuckDBSource, table_name: str) -> int:
@@ -478,8 +475,19 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
         
         # Convert to DataFrame and apply type conversion with spinner
         df_new = pd.DataFrame(data, columns=columns)
-        with st.spinner(f"새 데이터 타입 변환 중... ({fetch_result['row_count']}행)"):
-            df_new_converted = detect_and_convert_types(df_new)
+        try:
+            with st.spinner(f"새 데이터 타입 변환 중... ({fetch_result['row_count']}행)"):
+                df_new_converted = detect_and_convert_types(df_new)
+        except Exception as e:
+            st.error(f"타입 변환 오류: {e}")
+            return {
+                'df_converted': None,
+                'table_name': table_name,
+                'type_changes': {},
+                'success': False,
+                'error': f'Type conversion error: {str(e)}',
+                'is_incremental': True
+            }
         
         # Merge with existing cache
         existing_df = st.session_state.converted_data_cache.get(cache_key)
@@ -554,8 +562,19 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
         columns = fetch_result['columns']
 
         df_raw = pd.DataFrame(data, columns=columns)
-        with st.spinner(f"데이터 타입 자동 변환 중... ({len(df_raw)}행)"):
-            df_converted = detect_and_convert_types(df_raw)
+        try:
+            with st.spinner(f"데이터 타입 자동 변환 중... ({len(df_raw)}행)"):
+                df_converted = detect_and_convert_types(df_raw)
+        except Exception as e:
+            st.error(f"타입 변환 오류: {e}")
+            return {
+                'df_converted': None,
+                'table_name': table_name,
+                'type_changes': {},
+                'success': False,
+                'error': f'Type conversion error: {str(e)}',
+                'is_incremental': False
+            }
         
         # Calculate type changes
         original_types = df_raw.dtypes.to_dict()

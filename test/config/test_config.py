@@ -7,7 +7,7 @@ from oracle_duckdb_sync.config import load_config
 def setup_env(monkeypatch):
     """모든 필수 환경 변수를 기본값으로 설정하는 피스처"""
     # Mock load_dotenv to prevent loading .env file during tests
-    import oracle_duckdb_sync.config as config_module
+    import oracle_duckdb_sync.config.config as config_module
     monkeypatch.setattr(config_module, "load_dotenv", lambda: None)
     
     # Clear all potentially interfering env vars

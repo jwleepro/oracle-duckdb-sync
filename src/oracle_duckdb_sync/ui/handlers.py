@@ -10,7 +10,7 @@ import streamlit as st
 import traceback
 from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
 from oracle_duckdb_sync.state.sync_state import SyncLock
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 
 # Set up logger
 handler_logger = setup_logger('UIHandlers')

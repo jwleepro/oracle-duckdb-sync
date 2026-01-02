@@ -26,10 +26,10 @@ def test_040_duckdb_ping(mock_config):
 
         # Verify execute was called with correct query
         mock_conn.execute.assert_called_with("SELECT 1")
-        
+
         # Verify fetchall was called
         mock_result.fetchall.assert_called_once()
-        
+
         # Verify ping returns expected result
         assert result == [(1,)], "Ping should return [(1,)]"
 
@@ -42,25 +42,24 @@ def test_041_ensure_database(mock_config):
 
         # Track the initial call count (from connection/initialization)
         initial_execute_count = mock_conn.execute.call_count
-        
+
         # ensure_database는 DuckDB에서 아무 작업도 하지 않음
         result = source.ensure_database()
-        
+
         # Verify no additional execute calls were made
         assert mock_conn.execute.call_count == initial_execute_count, \
             "ensure_database should not call execute() - it's a no-op for DuckDB"
-        
+
         # Verify the method completes without error and returns None
         assert result is None
 
 
 def test_042_column_type_mapping(mock_config):
-    """TEST-042: 컬럼 타입 매핑 검증"""
-    with patch("oracle_duckdb_sync.database.duckdb_source.duckdb"):
-        source = DuckDBSource(mock_config)
-        assert source.map_oracle_type("NUMBER") == "DOUBLE"
-        assert source.map_oracle_type("DATE") == "TIMESTAMP"
-        assert source.map_oracle_type("VARCHAR2") == "VARCHAR"
+    """TEST-042: DuckDB는 Oracle 타입 매핑을 가지지 않음 (SyncEngine으로 이동됨)"""
+    # This test is now obsolete - map_oracle_type has been moved to SyncEngine
+    # DuckDB should not have Oracle-specific knowledge
+    # Type mapping is only needed during data synchronization
+    pass
 
 
 def test_050_batch_insert(mock_config):
@@ -71,12 +70,14 @@ def test_050_batch_insert(mock_config):
 
         data = [(1, "A"), (2, "B")]
         table = "sync_table"
-        result = source.insert_batch(table, data)
+        column_names = ["id", "name"]
+        result = source.insert_batch(table, data, column_names=column_names)
 
-        mock_conn.executemany.assert_called()
-        call_args = mock_conn.executemany.call_args
+        # Verify that execute was called with INSERT INTO ... SELECT * FROM df
+        mock_conn.execute.assert_called()
+        call_args = mock_conn.execute.call_args
         assert f"INSERT INTO {table}" in call_args[0][0]
-        assert call_args[0][1] == data
+        assert "SELECT * FROM df" in call_args[0][0]
         assert result == 2
 
 

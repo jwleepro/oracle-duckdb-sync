@@ -1,7 +1,7 @@
 import pytest
 import logging
 import os
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 
 def test_100_logger_initialization():
     """TEST-100: 로거 초기화 및 파일 기록 확인"""

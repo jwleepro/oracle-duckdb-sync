@@ -10,7 +10,7 @@ import numpy as np
 from typing import Optional
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 
 logger = setup_logger('DataConverter')
 
@@ -46,7 +46,7 @@ def is_numeric_string(series: pd.Series, threshold: float = 0.9, sample_size: in
     numeric_count = converted.notna().sum()
     
     proportion = numeric_count / len(sample)
-    return proportion >= threshold
+    return bool(proportion >= threshold)
 
 
 def is_datetime_string(series: pd.Series, threshold: float = 0.9, sample_size: int = 1000) -> bool:
@@ -107,7 +107,7 @@ def is_datetime_string(series: pd.Series, threshold: float = 0.9, sample_size: i
             # If inference fails, return False
             return False
     
-    return proportion >= threshold
+    return bool(proportion >= threshold)
 
 
 def convert_to_datetime(series: pd.Series) -> Optional[pd.Series]:

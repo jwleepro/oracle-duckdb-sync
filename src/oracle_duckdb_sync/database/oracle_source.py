@@ -80,7 +80,7 @@ class OracleSource:
         Args:
             config (Config): Oracle 연결 정보
         """
-        from oracle_duckdb_sync.logger import setup_logger
+        from oracle_duckdb_sync.log.logger import setup_logger
         
         self.config = config
         self.conn = None

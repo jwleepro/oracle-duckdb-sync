@@ -6,8 +6,8 @@ New code should import from subpackages directly.
 """
 
 # Keep widely-used modules at root
-from oracle_duckdb_sync.config import Config, load_config
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.config.config import Config, load_config
+from oracle_duckdb_sync.log.logger import setup_logger
 
 # Backward compatibility: re-export all public APIs from subpackages
 from oracle_duckdb_sync.ui.app import main

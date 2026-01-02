@@ -141,7 +141,7 @@ class TestQueryDuckDBTableCached:
         mock_st.warning.assert_called()
 
     @patch('oracle_duckdb_sync.data.query.st')
-    @patch('oracle_duckdb_sync.data.query._cached_convert_dataframe')
+    @patch('oracle_duckdb_sync.data.query.detect_and_convert_types')
     @patch('oracle_duckdb_sync.data.query._fetch_raw_data')
     def test_handles_conversion_failure(self, mock_fetch, mock_convert, mock_st):
         """Should handle type conversion failure gracefully."""
@@ -154,12 +154,8 @@ class TestQueryDuckDBTableCached:
             'error': None
         }
 
-        mock_convert.return_value = {
-            'df_converted': None,
-            'type_changes': {},
-            'success': False,
-            'error': 'Conversion error'
-        }
+        # Make detect_and_convert_types raise an exception
+        mock_convert.side_effect = Exception('Conversion error')
 
         result = query_duckdb_table_cached(mock_duckdb, "test_table", limit=100)
 

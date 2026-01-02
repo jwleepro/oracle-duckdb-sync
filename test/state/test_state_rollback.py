@@ -65,7 +65,7 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
         
         with pytest.raises(Exception, match="Network error"):
             engine.incremental_sync(
-                oracle_table="ORDERS",
+                oracle_table_name="ORDERS",
                 duckdb_table="orders",
                 column="ORDER_DATE",
                 last_value=new_timestamp,
@@ -99,7 +99,7 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
         # Retry sync from checkpoint
         retry_timestamp = "2024-01-05 10:00:00"
         total_rows = engine.incremental_sync(
-            oracle_table="ORDERS",
+            oracle_table_name="ORDERS",
             duckdb_table="orders",
             column="ORDER_DATE",
             last_value=retry_timestamp,

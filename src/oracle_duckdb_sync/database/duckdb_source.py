@@ -60,12 +60,7 @@ class DuckDBSource:
             return self.conn.execute(query, params).fetchall()
         return self.conn.execute(query).fetchall()
 
-    def map_oracle_type(self, oracle_type: str) -> str:
-        oracle_type = oracle_type.upper()
-        if "NUMBER" in oracle_type:
-            return "DOUBLE"
-        if "VARCHAR" in oracle_type or "CHAR" in oracle_type:
-            return "VARCHAR"
+
         if "DATE" in oracle_type:
             return "TIMESTAMP"
         if "TIMESTAMP" in oracle_type:

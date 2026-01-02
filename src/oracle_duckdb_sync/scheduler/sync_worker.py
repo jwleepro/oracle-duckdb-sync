@@ -5,7 +5,7 @@ import time
 import datetime
 from oracle_duckdb_sync.config import Config
 from oracle_duckdb_sync.database.sync_engine import SyncEngine
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 
 
 class SyncWorker:
@@ -25,12 +25,17 @@ class SyncWorker:
         self.config = config
         self.sync_params = sync_params
         self.progress_queue = progress_queue
-        self.status = 'idle'  # idle, running, completed, error
+        self.status = 'idle'  # idle, running, paused, completed, error
         self.thread = None
         self.error_info = None
         self.total_rows = 0
         self.start_time = None
-        self.logger = setup_logger('SyncWorker')  # Initialize logger
+        self.logger = setup_logger('SyncWorker')
+        
+        # Pause/resume control
+        self._pause_event = threading.Event()
+        self._pause_event.set()  # Not paused initially
+        self._stop_flag = threading.Event()  # Initialize logger
     
     def start(self):
         """Start the sync operation in a background thread"""
@@ -43,6 +48,26 @@ class SyncWorker:
         
         self.thread = threading.Thread(target=self._run_sync, daemon=True)
         self.thread.start()
+
+    def pause(self):
+        """Pause the sync operation"""
+        if self.status == 'running':
+            self._pause_event.clear()
+            self.status = 'paused'
+            self.logger.info("Sync paused")
+    
+    def resume(self):
+        """Resume the sync operation"""
+        if self.status == 'paused':
+            self._pause_event.set()
+            self.status = 'running'
+            self.logger.info("Sync resumed")
+    
+    def stop(self):
+        """Stop the sync operation"""
+        self._stop_flag.set()
+        self._pause_event.set()  # Unpause if paused so thread can exit
+        self.logger.info("Sync stop requested")
     
     def _run_sync(self):
         """Internal method that runs in the background thread"""

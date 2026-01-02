@@ -98,7 +98,7 @@ def test_133_incremental_sync_performance_10k_rows():
         
         # Execute incremental sync
         total_rows = engine.incremental_sync(
-            oracle_table="TEST_TABLE",
+            oracle_table_name="TEST_TABLE",
             duckdb_table="test_table",
             column="TIMESTAMP_COL",
             last_value="2024-01-01 00:00:00"

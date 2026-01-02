@@ -69,7 +69,7 @@ def test_sync_engine_timeout():
 
 def test_duckdb_connection_cleanup():
     """Verify DuckDB connection is closed properly"""
-    from oracle_duckdb_sync.duckdb_source import DuckDBSource
+    from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
     from oracle_duckdb_sync.config import Config
 
     with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
@@ -91,7 +91,7 @@ def test_duckdb_connection_cleanup():
 
 def test_oracle_cursor_cleanup_on_exception():
     """Verify cursor is closed even when execute() fails"""
-    from oracle_duckdb_sync.oracle_source import OracleSource
+    from oracle_duckdb_sync.database.oracle_source import OracleSource
     from oracle_duckdb_sync.config import Config
 
     with patch("oracledb.connect") as mock_connect:
@@ -121,7 +121,7 @@ def test_oracle_cursor_cleanup_on_exception():
 
 def test_logger_handler_cleanup():
     """Verify file handlers are closed and not accumulated"""
-    from oracle_duckdb_sync.logger import setup_logger, cleanup_logger
+    from oracle_duckdb_sync.log.logger import setup_logger, cleanup_logger
     import tempfile
     import os
 

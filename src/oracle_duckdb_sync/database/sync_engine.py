@@ -5,7 +5,7 @@ import logging
 from oracle_duckdb_sync.config import Config
 from oracle_duckdb_sync.database.oracle_source import OracleSource
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.state.file_manager import StateFileManager
 
 class SyncEngine:
@@ -15,6 +15,32 @@ class SyncEngine:
         self.duckdb = DuckDBSource(config)
         self.logger = setup_logger("sync_engine")
         self.state_manager = StateFileManager(self.logger)
+
+    @staticmethod
+    def map_oracle_type(oracle_type: str) -> str:
+        """Map Oracle data type to DuckDB data type.
+        
+        This method belongs to SyncEngine (data sync layer) because:
+        - Type mapping is only needed during data synchronization
+        - DuckDB should not have Oracle-specific knowledge
+        - After sync, DuckDB operates independently of Oracle
+        
+        Args:
+            oracle_type: Oracle data type (e.g., "NUMBER", "VARCHAR2(100)")
+            
+        Returns:
+            DuckDB data type (e.g., "DOUBLE", "VARCHAR", "TIMESTAMP")
+        """
+        oracle_type = oracle_type.upper()
+        if "NUMBER" in oracle_type:
+            return "DOUBLE"
+        if "VARCHAR" in oracle_type or "CHAR" in oracle_type:
+            return "VARCHAR"
+        if "DATE" in oracle_type:
+            return "TIMESTAMP"
+        if "TIMESTAMP" in oracle_type:
+            return "TIMESTAMP"
+        return "VARCHAR"
 
 
     def close(self):
@@ -67,7 +93,7 @@ class SyncEngine:
         
         # Map Oracle types to DuckDB types
         duckdb_columns = [
-            (col_name, self.duckdb.map_oracle_type(oracle_type))
+            (col_name, self.map_oracle_type(oracle_type))
             for col_name, oracle_type in schema
         ]
         
@@ -302,7 +328,7 @@ class SyncEngine:
             list: Rows with datetime objects converted to strings
         """
         self.logger.info(f"[PROCESS] Converting datetime objects...")
-        from oracle_duckdb_sync.oracle_source import datetime_handler
+        from oracle_duckdb_sync.database.oracle_source import datetime_handler
         data = [tuple(datetime_handler(v) for v in row) for row in rows]
         self.logger.info(f"[PROCESS] Converted {len(data)} rows")
         return data

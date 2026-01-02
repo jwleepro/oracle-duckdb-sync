@@ -2,7 +2,7 @@ import streamlit as st
 import time
 from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
-from oracle_duckdb_sync.logger import setup_logger
+from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.ui.handlers import (
     handle_test_sync,
     handle_full_sync,
