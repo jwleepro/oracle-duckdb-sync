@@ -68,16 +68,21 @@ class DuckDBSource:
             return self.conn.execute(query, params).fetchall()
         return self.conn.execute(query).fetchall()
 
-    def insert_batch(self, table: str, data: list, column_names: list = None, logger=None):
-        """Insert batch of data into DuckDB table using Pandas DataFrame
+    def insert_batch(self, table: str, data: list, column_names: list = None, primary_key: str = None, logger=None):
+        """Insert batch of data into DuckDB table using Pandas DataFrame with UPSERT support
         
         This is 100x faster than executemany for bulk inserts.
+        When primary_key is provided, uses INSERT OR REPLACE for UPSERT behavior.
         
         Args:
             table: Target table name
             data: List of tuples/lists containing row data
             column_names: List of column names (required for DataFrame)
+            primary_key: Primary key column name for UPSERT (optional)
             logger: Optional logger for progress tracking
+            
+        Returns:
+            int: Number of rows processed
         """
         if not data:
             return 0
@@ -102,8 +107,27 @@ class DuckDBSource:
         
         insert_start = time.time()
         
-        # Use DuckDB's optimized Pandas integration
-        self.conn.execute(f"INSERT INTO {table} SELECT * FROM df")
+        # Use UPSERT if primary_key is provided
+        if primary_key and column_names:
+            # DuckDB supports INSERT OR REPLACE for UPSERT behavior
+            # Build column list for UPDATE SET clause (all columns except primary key)
+            update_columns = [col for col in column_names if col != primary_key]
+            update_set = ", ".join([f"{col} = EXCLUDED.{col}" for col in update_columns])
+            
+            # Use INSERT ... ON CONFLICT ... DO UPDATE SET
+            insert_query = f"""
+                INSERT INTO {table} ({', '.join(column_names)})
+                SELECT * FROM df
+                ON CONFLICT ({primary_key}) DO UPDATE SET {update_set}
+            """
+            
+            if logger:
+                logger.info(f"[DUCKDB] Using UPSERT mode with primary key: {primary_key}")
+            
+            self.conn.execute(insert_query)
+        else:
+            # Regular INSERT without UPSERT
+            self.conn.execute(f"INSERT INTO {table} SELECT * FROM df")
         
         insert_time = time.time() - insert_start
         

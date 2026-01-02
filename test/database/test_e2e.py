@@ -323,11 +323,11 @@ def test_131_incremental_sync_e2e_real_db():
         print(f"    State updated: {updated_state}")
         
         print(f"\n[SUCCESS] TEST-131 Complete!")
-        print(f"  ✓ Full sync with 10k batches: {total_synced} rows")
-        print(f"  ✓ Number of batches: {len(all_batches)}")
-        print(f"  ✓ State save/load verified")
-        print(f"  ✓ Incremental query works")
-        print(f"  ✓ State update after incremental sync works")
+        print(f"  OK Full sync with 10k batches: {total_synced} rows")
+        print(f"  OK Number of batches: {len(all_batches)}")
+        print(f"  OK State save/load verified")
+        print(f"  OK Incremental query works")
+        print(f"  OK State update after incremental sync works")
 
         # Cleanup
         oracle_source.disconnect()
@@ -340,4 +340,166 @@ def test_131_incremental_sync_e2e_real_db():
             del os.environ['TNS_ADMIN']
         
         # Clean up temporary directory
+        shutil.rmtree(tmpdir, ignore_errors=True)
+
+
+def test_132_duplicate_sync_prevention_with_upsert():
+    """TEST-132: 같은 날 여러 번 동기화 시 UPSERT로 중복 방지 검증
+    
+    Scenario:
+    1. Create table with PRIMARY KEY
+    2. First sync: Insert initial data
+    3. Second sync (same day): Try to insert same data again
+    4. Verify: No duplicates, data is UPSERT'd (updated, not duplicated)
+    
+    This test verifies that incremental sync with UPSERT prevents duplicate data
+    when sync is run multiple times on the same day.
+    """
+    import tempfile
+    import os
+    
+    # Create temporary DuckDB file
+    tmpdir = tempfile.mkdtemp()
+    duckdb_file = os.path.join(tmpdir, "test_upsert.duckdb")
+    
+    try:
+        config = Config(
+            oracle_host="dummy", oracle_port=1521, oracle_service_name="dummy",
+            oracle_user="dummy", oracle_password="dummy",
+            duckdb_path=duckdb_file
+        )
+        
+        # Setup real DuckDB and mock Oracle
+        with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls:
+            mock_oracle = mock_oracle_cls.return_value
+            mock_oracle.conn = True  # Pretend we're connected
+            
+            # Mock schema retrieval
+            mock_oracle.get_table_schema.return_value = [
+                ("id", "NUMBER"),
+                ("name", "VARCHAR2(100)"),
+                ("value", "NUMBER"),
+                ("updated_at", "TIMESTAMP")
+            ]
+            
+            # Initialize sync engine with real DuckDB
+            engine = SyncEngine(config)
+            
+            print("\n[Step 1] Creating table with PRIMARY KEY...")
+            
+            # Create table in DuckDB
+            engine.duckdb.execute("""
+                CREATE TABLE test_sync (
+                    id INTEGER PRIMARY KEY,
+                    name VARCHAR,
+                    value INTEGER,
+                    updated_at TIMESTAMP
+                )
+            """)
+            
+            # Verify table was created
+            assert engine.duckdb.table_exists("test_sync")
+            print("  OK Table created with PRIMARY KEY on 'id'")
+            
+            # [Step 2] First sync: Insert initial data (3 rows)
+            print("\n[Step 2] First sync at 9:00 AM...")
+            
+            first_sync_data = [
+                (1, "Alice", 100, "2026-01-03 09:00:00"),
+                (2, "Bob", 200, "2026-01-03 09:00:00"),
+                (3, "Charlie", 300, "2026-01-03 09:00:00")
+            ]
+            
+            # Mock Oracle to return first sync data
+            mock_oracle.fetch_batch.side_effect = [first_sync_data, []]
+            mock_oracle.build_incremental_query.return_value = "SELECT * FROM test_table WHERE updated_at > '2026-01-03 00:00:00'"
+            
+            # Perform first incremental sync with PRIMARY KEY for UPSERT
+            total_rows_1 = engine.incremental_sync(
+                oracle_table_name="test_table",
+                duckdb_table="test_sync",
+                column="updated_at",
+                last_value="2026-01-03 00:00:00",
+                primary_key="id"
+            )
+            
+            assert total_rows_1 == 3
+            print(f"  OK First sync completed: {total_rows_1} rows")
+            
+            # Verify data in DuckDB
+            rows = engine.duckdb.conn.execute("SELECT * FROM test_sync ORDER BY id").fetchall()
+            assert len(rows) == 3, f"Expected 3 rows after first sync, got {len(rows)}"
+            # DuckDB returns datetime objects, so compare first 3 fields only
+            assert rows[0][:3] == (1, "Alice", 100)
+            print(f"  OK Verified: 3 rows in DuckDB")
+            
+            # [Step 3] Second sync (same day): Same data + 1 updated + 1 new
+            print("\n[Step 3] Second sync at 3:00 PM (same day)...")
+            
+            second_sync_data = [
+                (1, "Alice", 100, "2026-01-03 09:00:00"),  # Duplicate (same)
+                (2, "Bob Updated", 250, "2026-01-03 15:00:00"),  # Duplicate but updated
+                (3, "Charlie", 300, "2026-01-03 09:00:00"),  # Duplicate (same)
+                (4, "David", 400, "2026-01-03 15:00:00")  # New row
+            ]
+            
+            # Reset mock for second sync
+            mock_oracle.fetch_batch.side_effect = [second_sync_data, []]
+            
+            # Perform second incremental sync (same day) with PRIMARY KEY
+            total_rows_2 = engine.incremental_sync(
+                oracle_table_name="test_table",
+                duckdb_table="test_sync",
+                column="updated_at",
+                last_value="2026-01-03 00:00:00",  # Same last_value (same day!)
+                primary_key="id"  # UPSERT mode
+            )
+            
+            assert total_rows_2 == 4
+            print(f"  OK Second sync completed: {total_rows_2} rows processed")
+            
+            # [Step 4] Verify: NO DUPLICATES, only 4 rows total
+            print("\n[Step 4] Verifying UPSERT behavior (no duplicates)...")
+            
+            rows = engine.duckdb.conn.execute("SELECT * FROM test_sync ORDER BY id").fetchall()
+            
+            # CRITICAL: Should have 4 rows, NOT 7 (3 + 4)
+            assert len(rows) == 4, \
+                f"Expected 4 rows (UPSERT), but got {len(rows)}. Duplicates detected!"
+            
+            print(f"  OK Total rows: {len(rows)} (no duplicates!)")
+
+            # Verify row 1: unchanged (same data) - compare first 3 fields
+            assert rows[0][:3] == (1, "Alice", 100), \
+                "Row 1 should remain unchanged"
+            print("  OK Row 1 (Alice): unchanged")
+
+            # Verify row 2: UPDATED (value changed from 200 to 250, name updated)
+            assert rows[1][:3] == (2, "Bob Updated", 250), \
+                f"Row 2 should be updated, got {rows[1]}"
+            print("  OK Row 2 (Bob): updated from 200 to 250")
+
+            # Verify row 3: unchanged
+            assert rows[2][:3] == (3, "Charlie", 300), \
+                "Row 3 should remain unchanged"
+            print("  OK Row 3 (Charlie): unchanged")
+
+            # Verify row 4: NEW row
+            assert rows[3][:3] == (4, "David", 400), \
+                "Row 4 should be newly inserted"
+            print("  OK Row 4 (David): new row inserted")
+            
+            print("\n[SUCCESS] UPSERT prevents duplicates when syncing multiple times per day!")
+            print("  OK First sync: 3 rows")
+            print("  OK Second sync: 4 rows processed")
+            print("  OK Final count: 4 rows (no duplicates)")
+            print("  OK Updated row: Bob 200→250")
+            print("  OK New row: David added")
+            
+            # Cleanup
+            engine.close()
+            
+    finally:
+        # Clean up temporary directory
+        import shutil
         shutil.rmtree(tmpdir, ignore_errors=True)

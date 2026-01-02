@@ -177,7 +177,20 @@ class SyncEngine:
         self.logger.info(f"Starting test sync from {oracle_table_name} to {duckdb_table} (limit: {row_limit} rows)")
         return self._execute_limited_sync(oracle_table_name, duckdb_table, row_limit, duckdb_columns, batch_size=self.config.sync_batch_size)
 
-    def incremental_sync(self, oracle_table_name: str, duckdb_table: str, column: str, last_value: str, retries: int = None):
+    def incremental_sync(self, oracle_table_name: str, duckdb_table: str, column: str, last_value: str, primary_key: str = None, retries: int = None):
+        """Perform incremental synchronization from Oracle to DuckDB with UPSERT support
+        
+        Args:
+            oracle_table_name: Source Oracle table name
+            duckdb_table: Target DuckDB table name
+            column: Timestamp column for incremental detection
+            last_value: Last synchronized timestamp value
+            primary_key: Primary key column for UPSERT (optional, recommended for deduplication)
+            retries: Number of retry attempts on failure
+            
+        Returns:
+            int: Total number of rows synchronized
+        """
         # Ensure Oracle connection is established
         if not self.oracle.conn:
             self.oracle.connect()
@@ -188,7 +201,7 @@ class SyncEngine:
         last_exception = None
         for attempt in range(retries):
             try:
-                return self._execute_sync(query, duckdb_table)
+                return self._execute_sync(query, duckdb_table, primary_key=primary_key)
             except Exception as e:
                 last_exception = e
                 if attempt < retries - 1:
@@ -204,7 +217,19 @@ class SyncEngine:
         query = f"SELECT * FROM {oracle_table_name}"
         return self._execute_sync(query, duckdb_table, batch_size, max_duration)
 
-    def _execute_sync(self, query: str, duckdb_table: str, batch_size: int = None, max_duration: int = None):
+    def _execute_sync(self, query: str, duckdb_table: str, batch_size: int = None, max_duration: int = None, primary_key: str = None):
+        """Execute sync query with optional UPSERT support
+        
+        Args:
+            query: SQL query to execute
+            duckdb_table: Target DuckDB table name
+            batch_size: Number of rows per batch
+            max_duration: Maximum duration in seconds
+            primary_key: Primary key column for UPSERT (optional)
+            
+        Returns:
+            int: Total number of rows synchronized
+        """
         if batch_size is None:
             batch_size = self.config.sync_batch_size
         if max_duration is None:
@@ -240,7 +265,18 @@ class SyncEngine:
             data = self.oracle.fetch_batch(query, batch_size=batch_size)
             if not data:
                 break
-            self.duckdb.insert_batch(duckdb_table, data)
+            
+            # Use UPSERT if primary_key is provided
+            if primary_key:
+                # Get column names from table schema
+                schema_query = f"DESCRIBE {duckdb_table}"
+                schema_result = self.duckdb.conn.execute(schema_query).fetchall()
+                column_names = [row[0] for row in schema_result]
+                
+                self.duckdb.insert_batch(duckdb_table, data, column_names=column_names, primary_key=primary_key, logger=self.logger)
+            else:
+                self.duckdb.insert_batch(duckdb_table, data)
+            
             total_count += len(data)
             self._log_progress(duckdb_table, total_count, len(data))
             if len(data) < batch_size:

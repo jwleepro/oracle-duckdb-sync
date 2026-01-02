@@ -5,7 +5,7 @@ This module provides functions for querying DuckDB tables and managing
 table metadata.
 """
 
-import streamlit as st
+# UI dependencies removed - this module is now framework-independent
 import pandas as pd
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.config import Config
@@ -20,7 +20,7 @@ from oracle_duckdb_sync.log.logger import setup_logger
 query_logger = setup_logger('DataQuery')
 
 
-def get_available_tables(duckdb: DuckDBSource) -> list:
+def get_available_tables(duckdb: DuckDBSource) -> dict:
     """
     Get list of available tables in DuckDB.
     
@@ -28,7 +28,10 @@ def get_available_tables(duckdb: DuckDBSource) -> list:
         duckdb: DuckDBSource instance
     
     Returns:
-        List of table names
+        Dictionary containing:
+            - tables: List of table names
+            - messages: List of info/warning messages for UI display
+            - success: Boolean indicating success
     """
     try:
         available_tables = duckdb.execute("""
@@ -39,16 +42,33 @@ def get_available_tables(duckdb: DuckDBSource) -> list:
         """)
         table_list = [row[0] for row in available_tables] if available_tables else []
         
+        messages = []
         if table_list:
-            st.info(f"📊 사용 가능한 테이블: {', '.join(table_list)}")
+            messages.append({
+                'level': 'info',
+                'message': f"📊 사용 가능한 테이블: {', '.join(table_list)}"
+            })
         else:
-            st.warning("⚠️ DuckDB에 테이블이 없습니다. 먼저 '지금 동기화 실행'을 클릭하세요.")
+            messages.append({
+                'level': 'warning',
+                'message': "⚠️ DuckDB에 테이블이 없습니다. 먼저 '지금 동기화 실행'을 클릭하세요."
+            })
         
-        return table_list
+        return {
+            'tables': table_list,
+            'messages': messages,
+            'success': True
+        }
     except Exception as e:
         query_logger.warning(f"테이블 목록 조회 실패: {e}")
-        st.warning(f"테이블 목록 조회 실패: {e}")
-        return []
+        return {
+            'tables': [],
+            'messages': [{
+                'level': 'warning',
+                'message': f"테이블 목록 조회 실패: {e}"
+            }],
+            'success': False
+        }
 
 
 def determine_default_table_name(config: Config, table_list: list) -> str:
@@ -108,22 +128,35 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
             - df_converted: Converted DataFrame
             - table_name: Table name
             - type_changes: Dictionary of type conversions applied
+            - messages: List of messages for UI display
             - success: Boolean indicating success
             - error: Error message if failed
     """
+    messages = []
     try:
-        # Show query being executed
-        st.info(f"실행 쿼리: SELECT * FROM {table_name} LIMIT {limit}")
-        
         # Execute query
+        query_logger.info(f"실행 쿼리: SELECT * FROM {table_name} LIMIT {limit}")
+        messages.append({
+            'level': 'info',
+            'message': f"실행 쿼리: SELECT * FROM {table_name} LIMIT {limit}"
+        })
+        
         data = duckdb.execute(f"SELECT * FROM {table_name} LIMIT {limit}")
 
         if not data or len(data) == 0:
-            st.warning(f"조회 결과가 없습니다. 테이블 '{table_name}'이(가) 비어있거나 존재하지 않습니다.")
+            query_logger.warning(f"조회 결과가 없습니다. 테이블 '{table_name}'이(가) 비어있거나 존재하지 않습니다.")
+            messages.append({
+                'level': 'warning',
+                'message': f"조회 결과가 없습니다. 테이블 '{table_name}'이(가) 비어있거나 존재하지 않습니다."
+            })
+            
             # Show available tables
             try:
                 tables = duckdb.conn.execute("SHOW TABLES").fetchall()
-                st.info(f"사용 가능한 테이블: {[t[0] for t in tables]}")
+                messages.append({
+                    'level': 'info',
+                    'message': f"사용 가능한 테이블: {[t[0] for t in tables]}"
+                })
             except:
                 pass
             
@@ -131,6 +164,7 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
                 'df_converted': None,
                 'table_name': table_name,
                 'type_changes': {},
+                'messages': messages,
                 'success': False,
                 'error': 'No data returned'
             }
@@ -140,12 +174,21 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
         columns = [desc[0] for desc in result.description]
         df = pd.DataFrame(data, columns=columns)
 
-        st.success(f"✅ {len(df)} 행 조회 완료")
+        query_logger.info(f"✅ {len(df)} 행 조회 완료")
+        messages.append({
+            'level': 'success',
+            'message': f"✅ {len(df)} 행 조회 완료"
+        })
 
-        # Apply automatic type conversion for VARCHAR2 columns with spinner
-        with st.spinner("데이터 타입 자동 변환 중..."):
-            query_logger.info("Applying automatic type conversion to detect numeric and datetime columns")
-            df_converted = detect_and_convert_types(df)
+        # Apply automatic type conversion
+        query_logger.info("데이터 타입 자동 변환 중...")
+        messages.append({
+            'level': 'spinner',
+            'message': "데이터 타입 자동 변환 중..."
+        })
+        
+        query_logger.info("Applying automatic type conversion to detect numeric and datetime columns")
+        df_converted = detect_and_convert_types(df)
         
         # Show conversion results
         original_types = df.dtypes.to_dict()
@@ -155,15 +198,22 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
                        if str(original_types[col]) != str(converted_types[col])}
         
         if type_changes:
-            with st.expander("🔄 자동 타입 변환 결과"):
-                for col, (old_type, new_type) in type_changes.items():
-                    st.text(f"  • {col}: {old_type} → {new_type}")
+            conversion_details = []
+            for col, (old_type, new_type) in type_changes.items():
+                conversion_details.append(f"  • {col}: {old_type} → {new_type}")
+            
+            messages.append({
+                'level': 'expander',
+                'title': "🔄 자동 타입 변환 결과",
+                'content': "\n".join(conversion_details)
+            })
             query_logger.info(f"Type conversions applied: {type_changes}")
         
         return {
             'df_converted': df_converted,
             'table_name': table_name,
             'type_changes': type_changes,
+            'messages': messages,
             'success': True,
             'error': None
         }
@@ -174,14 +224,21 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
         error_traceback = traceback.format_exc()
         query_logger.error(f"Traceback:\n{error_traceback}")
         
-        # Display error to user
-        st.error(f"데이터 조회 오류: {e}")
-        st.code(error_traceback)
+        # Prepare error messages
+        messages.append({
+            'level': 'error',
+            'message': f"데이터 조회 오류: {e}"
+        })
+        messages.append({
+            'level': 'code',
+            'content': error_traceback
+        })
         
         return {
             'df_converted': None,
             'table_name': table_name,
             'type_changes': {},
+            'messages': messages,
             'success': False,
             'error': str(e)
         }
@@ -341,7 +398,6 @@ def _detect_conversion_suggestions(df: pd.DataFrame) -> dict:
     return detect_convertible_columns(df)
 
 
-@st.cache_data(ttl=3600, show_spinner=False)
 def _cached_convert_dataframe(data: list, columns: list, table_name: str, selected_conversions: dict = None) -> dict:
     """
     Cached function that converts raw data to typed DataFrame.

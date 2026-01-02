@@ -115,11 +115,13 @@ class SyncWorker:
             elif sync_type == 'incremental':
                 time_column = self.sync_params['time_column']
                 last_value = self.sync_params['last_value']
+                primary_key = self.sync_params.get('primary_key')  # Get primary_key for UPSERT
                 self.total_rows = sync_engine.incremental_sync(
                     oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,
                     column=time_column,
-                    last_value=last_value
+                    last_value=last_value,
+                    primary_key=primary_key
                 )
             else:
                 raise ValueError(f"Unknown sync_type: {sync_type}")

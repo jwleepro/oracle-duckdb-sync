@@ -11,6 +11,11 @@ from oracle_duckdb_sync import data
 # 🆕 Use Application Service Layer instead of direct data access
 from oracle_duckdb_sync.application.query_service import QueryService
 
+# 🆕 Use StreamlitAdapter for UI abstraction
+from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
+from oracle_duckdb_sync.application.ui_presenter import MessageContext
+from oracle_duckdb_sync.ui.ui_helpers import show_table_list
+
 from oracle_duckdb_sync.ui.handlers import (
     handle_test_sync,
     handle_full_sync,
@@ -69,9 +74,13 @@ def check_progress():
 def main():
     st.set_page_config(page_title="Oracle-DuckDB Sync Dashboard", layout="wide")
     st.title("데이터 동기화 및 분석 대시보드")
-    
+
     # Initialize session state
     initialize_session_state()
+
+    # 🆕 Initialize UI Adapter for framework-independent UI operations
+    ui_adapter = StreamlitAdapter()
+    app_logger.info("StreamlitAdapter initialized")
 
     try:
         config = load_config()
@@ -80,14 +89,17 @@ def main():
             raise ValueError("SYNC_ORACLE_TABLE이 .env 파일에 설정되지 않았습니다.")
 
         duckdb = DuckDBSource(config)
-        
+
         # 🆕 Initialize QueryService for UI-independent data access
         query_service = QueryService(duckdb)
         app_logger.info("QueryService initialized")
         
     except Exception as e:
         app_logger.error(f"설정 로드 실패: {e}")
-        st.error(f"설정을 로드할 수 없습니다: {e}")
+        ui_adapter.presenter.show_message(MessageContext(
+            level='error',
+            message=f"설정을 로드할 수 없습니다: {e}"
+        ))
         return
     
     # Sidebar 메뉴 구성을 바꾸려면 여길 고쳐야 함. jwlee
@@ -138,7 +150,10 @@ def main():
     #메인 화면
     # Show available tables in DuckDB
     table_list = get_available_tables(duckdb)
-    
+
+    # 🆕 Display table list using UI adapter
+    show_table_list(table_list, ui_adapter)
+
     # Determine default table name
     default_table = determine_default_table_name(config, table_list)    
     
@@ -192,9 +207,15 @@ def main():
                     'interval': agg_result['interval'],
                     'numeric_cols': agg_result.get('numeric_cols', [])
                 }
-                st.success(f"✅ 집계 완료: {len(agg_result['df_aggregated'])} 시간 구간")
+                ui_adapter.presenter.show_message(MessageContext(
+                    level='success',
+                    message=f"✅ 집계 완료: {len(agg_result['df_aggregated'])} 시간 구간"
+                ))
             else:
-                st.error(f"집계 쿼리 오류: {agg_result['error']}")
+                ui_adapter.presenter.show_message(MessageContext(
+                    level='error',
+                    message=f"집계 쿼리 오류: {agg_result['error']}"
+                ))
                 st.session_state.query_result = None
 
         else:
@@ -224,9 +245,15 @@ def main():
         # Show query mode info
         if query_mode == 'aggregated':
             interval = st.session_state.query_result.get('interval', 'unknown')
-            st.info(f"📊 집계 뷰 표시 중 (해상도: {interval}, 총 {len(df_converted)} 시간 구간)")
+            ui_adapter.presenter.show_message(MessageContext(
+                level='info',
+                message=f"📊 집계 뷰 표시 중 (해상도: {interval}, 총 {len(df_converted)} 시간 구간)"
+            ))
         else:
-            st.info(f"📊 상세 뷰 표시 중 (총 {len(df_converted):,}행)")
+            ui_adapter.presenter.show_message(MessageContext(
+                level='info',
+                message=f"📊 상세 뷰 표시 중 (총 {len(df_converted):,}행)"
+            ))
 
         # Render visualization
         render_data_visualization(df_converted, visualization_table_name, query_mode=query_mode)        
@@ -240,7 +267,10 @@ def main():
         if df_converted is not None:
             # Display row count
             total_rows = len(df_converted)
-            st.info(f"📊 총 {total_rows:,}행 조회됨")
+            ui_adapter.presenter.show_message(MessageContext(
+                level='info',
+                message=f"📊 총 {total_rows:,}행 조회됨"
+            ))
 
             # Limit displayed rows to prevent MessageSizeError
             max_display_rows = st.number_input(
@@ -255,7 +285,10 @@ def main():
             # Show data with row limit - add spinner to prevent UI blocking
             with st.spinner(f"데이터 테이블 렌더링 중... ({min(total_rows, max_display_rows):,}행)"):
                 if total_rows > max_display_rows:
-                    st.warning(f"⚠️ 성능을 위해 {max_display_rows:,}행만 표시합니다. (전체: {total_rows:,}행)")
+                    ui_adapter.presenter.show_message(MessageContext(
+                        level='warning',
+                        message=f"⚠️ 성능을 위해 {max_display_rows:,}행만 표시합니다. (전체: {total_rows:,}행)"
+                    ))
                     st.dataframe(df_converted.head(max_display_rows))
                 else:
                     st.dataframe(df_converted)

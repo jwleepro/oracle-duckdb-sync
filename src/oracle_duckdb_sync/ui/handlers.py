@@ -11,6 +11,8 @@ import traceback
 from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
 from oracle_duckdb_sync.state.sync_state import SyncLock
 from oracle_duckdb_sync.log.logger import setup_logger
+from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
+from oracle_duckdb_sync.application.ui_presenter import MessageContext
 
 # Set up logger
 handler_logger = setup_logger('UIHandlers')
@@ -20,19 +22,27 @@ handler_logger = setup_logger('UIHandlers')
 # Helper Functions for DRY (Don't Repeat Yourself)
 # ============================================================================
 
-def _validate_table_name(table_name: str) -> bool:
+def _validate_table_name(table_name: str, ui_adapter: StreamlitAdapter = None) -> bool:
     """
     테이블명 검증 헬퍼 함수
 
     Args:
         table_name: 검증할 테이블명
+        ui_adapter: UI 어댑터 (옵션)
 
     Returns:
         bool: 유효하면 True, 그렇지 않으면 False
     """
     if not table_name:
         handler_logger.warning("Table name validation failed: No table name provided")
-        st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
+        if ui_adapter:
+            with ui_adapter.layout.create_sidebar():
+                ui_adapter.presenter.show_message(MessageContext(
+                    level='warning',
+                    message="테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요."
+                ))
+        else:
+            st.sidebar.warning("테이블명을 입력하세요. .env 파일의 SYNC_ORACLE_TABLE을 설정하거나 '수동 설정 사용'을 체크하세요.")
         return False
     handler_logger.info(f"Table name validated: {table_name}")
     return True
@@ -208,7 +218,8 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
                 'oracle_table': table_name,
                 'duckdb_table': duckdb_table,
                 'time_column': time_column,  # Already parsed, no need to split
-                'last_value': last_sync_time
+                'last_value': last_sync_time,
+                'primary_key': primary_key  # Add primary_key for UPSERT
             }
             handler_logger.info(f"Performing incremental sync from: {last_sync_time}")
         
