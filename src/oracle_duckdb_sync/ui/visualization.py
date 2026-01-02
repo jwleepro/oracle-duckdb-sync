@@ -227,27 +227,51 @@ def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str
         st.session_state.pop(f'{filter_key}_max', None)
         st.session_state[f'prev_y_cols_{table_name}'] = y_cols
 
-    # Check if filter is applied in session state
+    # Check if time filter is applied in session state
+    time_filter_key = f'time_filter_{table_name}'
+    time_filter_applied = st.session_state.get(f'{time_filter_key}_applied', False)
+
+    # Apply time filter if active
+    df_to_plot = df.copy()
+    if time_filter_applied and x_col:
+        time_min = st.session_state.get(f'{time_filter_key}_min')
+        time_max = st.session_state.get(f'{time_filter_key}_max')
+
+        if time_min is not None and time_max is not None:
+            # Filter by time range
+            df_to_plot = df_to_plot[(df_to_plot[x_col] >= time_min) & (df_to_plot[x_col] <= time_max)].copy()
+
+            # Check if all data was filtered out
+            if len(df_to_plot) == 0:
+                st.warning("⚠️ 시간 필터 조건에 맞는 데이터가 없습니다. 필터를 조정하거나 초기화하세요.")
+                return
+
+            # Show time filter status
+            time_min_str = time_min.strftime('%Y.%m.%d')
+            time_max_str = time_max.strftime('%Y.%m.%d')
+            st.info(f"📅 **활성 시간 필터**: {time_min_str} ~ {time_max_str} (표시: {len(df_to_plot)}/{len(df)}행)")
+
+    # Check if Y-axis value filter is applied in session state
     filter_key = f'filter_{table_name}'
     filter_applied = st.session_state.get(f'{filter_key}_applied', False)
 
-    # Apply filter if active
-    df_to_plot = df.copy()
+    # Apply Y-axis value filter if active (after time filter)
     if filter_applied:
         filter_col = st.session_state.get(f'{filter_key}_col')
         filter_min = st.session_state.get(f'{filter_key}_min')
         filter_max = st.session_state.get(f'{filter_key}_max')
 
         if filter_col and filter_min is not None and filter_max is not None:
+            original_count = len(df_to_plot)
             df_to_plot = filter_dataframe_by_range(df_to_plot, filter_col, filter_min, filter_max)
 
             # Check if all data was filtered out
             if len(df_to_plot) == 0:
-                st.warning("⚠️ 필터 조건에 맞는 데이터가 없습니다. 필터를 조정하거나 초기화하세요.")
+                st.warning("⚠️ 값 필터 조건에 맞는 데이터가 없습니다. 필터를 조정하거나 초기화하세요.")
                 return
 
             # Show filter status
-            st.info(f"🔍 **활성 필터**: {filter_col} ∈ [{filter_min:.6f}, {filter_max:.6f}] (표시: {len(df_to_plot)}/{len(df)}행)")
+            st.info(f"🔍 **활성 값 필터**: {filter_col} ∈ [{filter_min:.6f}, {filter_max:.6f}] (표시: {len(df_to_plot)}/{original_count}행)")
 
     # Prepare and display chart with filtered data
     _create_and_display_chart(
@@ -259,7 +283,60 @@ def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str
         filtered_column=None
     )
 
-    # Filter controls in collapsible section BELOW chart
+    # Time filter controls in collapsible section BELOW chart
+    if x_col:  # Only show time filter if there's a datetime column
+        st.markdown("---")
+        with st.expander("📅 시간 범위 필터", expanded=False):
+            # Use st.form to prevent reruns until submit
+            with st.form(key=f"time_filter_form_{table_name}"):
+                st.caption("시간 범위를 설정하고 '필터 적용' 버튼을 클릭하세요.")
+
+                # Get min/max dates from original dataframe
+                date_min = df[x_col].min()
+                date_max = df[x_col].max()
+
+                # Date inputs
+                col1, col2 = st.columns(2)
+                with col1:
+                    start_date = st.date_input(
+                        "시작 날짜",
+                        value=date_min.date() if hasattr(date_min, 'date') else date_min,
+                        min_value=date_min.date() if hasattr(date_min, 'date') else date_min,
+                        max_value=date_max.date() if hasattr(date_max, 'date') else date_max,
+                        help=f"데이터 시작: {date_min.strftime('%Y.%m.%d')}"
+                    )
+                with col2:
+                    end_date = st.date_input(
+                        "종료 날짜",
+                        value=date_max.date() if hasattr(date_max, 'date') else date_max,
+                        min_value=date_min.date() if hasattr(date_min, 'date') else date_min,
+                        max_value=date_max.date() if hasattr(date_max, 'date') else date_max,
+                        help=f"데이터 종료: {date_max.strftime('%Y.%m.%d')}"
+                    )
+
+                # Form submit button
+                submitted = st.form_submit_button("✅ 시간 필터 적용", use_container_width=True)
+
+                if submitted:
+                    # Convert date to datetime for comparison
+                    start_datetime = pd.to_datetime(start_date)
+                    end_datetime = pd.to_datetime(end_date) + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)  # End of day
+
+                    # Store filter in session state
+                    st.session_state[f'{time_filter_key}_applied'] = True
+                    st.session_state[f'{time_filter_key}_min'] = start_datetime
+                    st.session_state[f'{time_filter_key}_max'] = end_datetime
+                    st.rerun()
+
+            # Reset button (outside form)
+            if st.button("🔄 시간 필터 초기화", key=f"reset_time_filter_{table_name}"):
+                st.session_state.pop(f'{time_filter_key}_applied', None)
+                st.session_state.pop(f'{time_filter_key}_min', None)
+                st.session_state.pop(f'{time_filter_key}_max', None)
+                st.rerun()
+
+    # Y-axis value filter controls in collapsible section BELOW time filter
+
     st.markdown("---")
     with st.expander("🔍 데이터 범위 필터 (이상치 제거)", expanded=False):
         # Use st.form to prevent reruns until submit
@@ -451,8 +528,14 @@ def _create_and_display_chart(
                 )
                 viz_logger.info(f"Y-axis range set to [{y_axis_min:.6f}, {y_axis_max:.6f}]")
 
-            # Disable range slider for cleaner view
-            fig.update_xaxes(rangeslider_visible=False)
+            # Disable range slider for cleaner view and set date format to YYYY.MM.DD
+            fig.update_xaxes(
+                rangeslider_visible=False,
+                tickformat="%Y.%m.%d",  # Format dates as YYYY.MM.DD
+                showgrid=True,  # Show vertical grid lines for time axis
+                gridwidth=1,
+                gridcolor='LightGray'
+            )
 
         st.plotly_chart(fig, use_container_width=True)
 
