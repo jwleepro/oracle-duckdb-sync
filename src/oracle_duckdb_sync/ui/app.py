@@ -3,6 +3,14 @@ import time
 from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.log.logger import setup_logger
+
+# 🆕 Cache provider injection for framework independence
+from oracle_duckdb_sync.adapters.streamlit_cache import StreamlitCacheProvider
+from oracle_duckdb_sync import data
+
+# 🆕 Use Application Service Layer instead of direct data access
+from oracle_duckdb_sync.application.query_service import QueryService
+
 from oracle_duckdb_sync.ui.handlers import (
     handle_test_sync,
     handle_full_sync,
@@ -19,15 +27,20 @@ from oracle_duckdb_sync.data.query_core import (
     get_table_row_count,
     query_table_with_conversion
 )
-# Import aggregated query from old module until migrated
+# Legacy imports for backward compatibility (will be removed in Phase 3)
 from oracle_duckdb_sync.data.query import (
     query_duckdb_table_cached,
-    query_duckdb_table_aggregated
 )
 from oracle_duckdb_sync.ui.visualization import render_data_visualization
 
 # Set up logger for app.py
 app_logger = setup_logger('StreamlitApp')
+
+# 🆕 Initialize cache provider for data layer (enables UI framework independence)
+# This allows data layer to use caching without directly depending on Streamlit
+_cache_provider = StreamlitCacheProvider()
+app_logger.info("Streamlit cache provider initialized for data layer")
+
 
 
 def check_progress():
@@ -67,6 +80,11 @@ def main():
             raise ValueError("SYNC_ORACLE_TABLE이 .env 파일에 설정되지 않았습니다.")
 
         duckdb = DuckDBSource(config)
+        
+        # 🆕 Initialize QueryService for UI-independent data access
+        query_service = QueryService(duckdb)
+        app_logger.info("QueryService initialized")
+        
     except Exception as e:
         app_logger.error(f"설정 로드 실패: {e}")
         st.error(f"설정을 로드할 수 없습니다: {e}")
@@ -156,11 +174,10 @@ def main():
     
     if st.button("조회"):
         if query_mode == "집계 뷰 (빠름)":
-            # Use time bucket aggregation for fast initial view
+            # 🆕 Use QueryService instead of direct data layer access
             with st.spinner(f"집계 데이터 조회 중... (해상도: {resolution})"):
-                agg_result = query_duckdb_table_aggregated(
-                    duckdb,
-                    duckdb_table_name,
+                agg_result = query_service.query_table_aggregated_legacy(
+                    table_name=duckdb_table_name,
                     time_column=time_column,
                     interval=resolution
                 )

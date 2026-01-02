@@ -191,3 +191,140 @@ class QueryService:
                 success=False,
                 error=str(e)
             )
+    
+    def query_table_aggregated_legacy(self,
+                                      table_name: str,
+                                      time_column: str,
+                                      interval: str = '10 minutes',
+                                      numeric_cols: Optional[List[str]] = None) -> Dict[str, Any]:
+        """
+        Query table with time bucket aggregation (legacy interface compatible).
+        
+        This method provides backward compatibility with the legacy query.py interface.
+        It auto-detects numeric columns and handles VARCHAR conversion.
+        
+        Args:
+            table_name: Name of table to query
+            time_column: Name of timestamp column for bucketing
+            interval: Time interval for aggregation (e.g., '1 minute', '10 minutes', '1 hour')
+            numeric_cols: List of numeric columns to aggregate (if None, auto-detect)
+        
+        Returns:
+            Dictionary containing:
+                - df_aggregated: Aggregated DataFrame
+                - table_name: Table name
+                - interval: Aggregation interval used
+                - numeric_cols: List of numeric columns used
+                - success: Boolean indicating success
+                - error: Error message if failed
+        """
+        try:
+            conn = self.duckdb_source.get_connection()
+            
+            # Auto-detect numeric columns if not provided
+            if numeric_cols is None:
+                # Get column names
+                result = conn.execute(f"SELECT * FROM {table_name} LIMIT 0")
+                all_cols = [desc[0] for desc in result.description]
+                
+                # Sample data for type detection
+                sample = conn.execute(f"SELECT * FROM {table_name} LIMIT 1000").fetchdf()
+                
+                # First try native numeric columns
+                numeric_cols = [
+                    col for col in sample.select_dtypes(include=['number']).columns
+                    if col != time_column
+                ]
+                
+                # If no numeric columns found, try to detect convertible VARCHAR columns
+                if not numeric_cols:
+                    logger.info("No native numeric columns found, checking VARCHAR columns...")
+                    from ..data.converter import is_numeric_string
+                    
+                    varchar_cols = [
+                        col for col in sample.select_dtypes(include=['object', 'string']).columns
+                        if col != time_column
+                    ]
+                    
+                    for col in varchar_cols:
+                        if is_numeric_string(sample[col]):
+                            numeric_cols.append(col)
+                            logger.info(f"Detected numeric VARCHAR column: {col}")
+            
+            if not numeric_cols:
+                return {
+                    'df_aggregated': None,
+                    'table_name': table_name,
+                    'interval': interval,
+                    'success': False,
+                    'error': 'No numeric columns found for aggregation'
+                }
+            
+            # Build aggregation query with MAX/MIN/AVG for each numeric column
+            # Sample to check column types
+            sample = conn.execute(f"SELECT * FROM {table_name} LIMIT 100").fetchdf()
+            
+            agg_exprs = []
+            for col in numeric_cols:
+                # Check if column needs casting (VARCHAR/string type)
+                col_type = str(sample[col].dtype)
+                if 'object' in col_type or 'string' in col_type:
+                    # Cast VARCHAR to DOUBLE for aggregation
+                    cast_expr = f"TRY_CAST({col} AS DOUBLE)"
+                    agg_exprs.append(f"AVG({cast_expr}) as {col}_avg")
+                    agg_exprs.append(f"MAX({cast_expr}) as {col}_max")
+                    agg_exprs.append(f"MIN({cast_expr}) as {col}_min")
+                else:
+                    # Native numeric column, no casting needed
+                    agg_exprs.append(f"AVG({col}) as {col}_avg")
+                    agg_exprs.append(f"MAX({col}) as {col}_max")
+                    agg_exprs.append(f"MIN({col}) as {col}_min")
+            
+            agg_clause = ', '.join(agg_exprs)
+            
+            # Parse time_column with custom format (YYYYMMDDHHmmss)
+            query = f"""
+            SELECT
+                time_bucket(INTERVAL '{interval}', strptime(CAST({time_column} AS VARCHAR), '%Y%m%d%H%M%S')) as time_bucket,
+                {agg_clause}
+            FROM {table_name}
+            GROUP BY time_bucket
+            ORDER BY time_bucket
+            """
+            
+            logger.info(f"Executing aggregated query with interval '{interval}'")
+            
+            # Execute query
+            df_aggregated = conn.execute(query).fetchdf()
+            
+            if df_aggregated.empty:
+                return {
+                    'df_aggregated': None,
+                    'table_name': table_name,
+                    'interval': interval,
+                    'success': False,
+                    'error': 'No data returned from aggregation'
+                }
+            
+            logger.info(f"Aggregation complete: {len(df_aggregated)} time buckets")
+            
+            return {
+                'df_aggregated': df_aggregated,
+                'table_name': table_name,
+                'interval': interval,
+                'numeric_cols': numeric_cols,
+                'success': True,
+                'error': None
+            }
+            
+        except Exception as e:
+            logger.error(f"Aggregation query error: {e}")
+            import traceback
+            logger.error(f"Traceback:\n{traceback.format_exc()}")
+            return {
+                'df_aggregated': None,
+                'table_name': table_name,
+                'interval': interval,
+                'success': False,
+                'error': str(e)
+            }
