@@ -9,6 +9,7 @@ import streamlit as st
 import pandas as pd
 import plotly.express as px
 import numpy as np
+from typing import List, Optional
 from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.data.lttb import lttb_downsample_multi_y
 
@@ -149,7 +150,12 @@ def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, m
     return filtered_df
 
 
-def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str = 'detailed'):
+def render_data_visualization(
+    df: pd.DataFrame,
+    table_name: str,
+    query_mode: str = 'detailed',
+    base_numeric_cols: Optional[List[str]] = None
+):
     """
     Render interactive data visualization with Plotly charts.
 
@@ -157,6 +163,8 @@ def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str
         df: DataFrame to visualize (can be None)
         table_name: Name of the table being visualized
         query_mode: Query mode ('aggregated' or 'detailed')
+        base_numeric_cols: Base numeric columns from source table (used to avoid showing
+            derived aggregate columns like _min/_max/_avg in selection)
     """
     if df is None or df.empty:
         return
@@ -168,6 +176,10 @@ def render_data_visualization(df: pd.DataFrame, table_name: str, query_mode: str
     # Detect visualizable columns
     numeric_cols = _detect_numeric_columns(df)
     datetime_cols = _detect_datetime_columns(df)
+
+    # In aggregated mode, limit selectable numeric columns to original base columns
+    if query_mode == 'aggregated' and base_numeric_cols is not None:
+        numeric_cols = [col for col in base_numeric_cols if col in numeric_cols]
     
     if not numeric_cols and not datetime_cols:
         st.info("시각화할 숫자형 또는 날짜형 컬럼이 없습니다. VARCHAR2 컬럼의 내용이 숫자나 날짜 형식이 아닐 수 있습니다.")

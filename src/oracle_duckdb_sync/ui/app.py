@@ -256,7 +256,15 @@ def main():
             ))
 
         # Render visualization
-        render_data_visualization(df_converted, visualization_table_name, query_mode=query_mode)        
+        base_numeric_cols = None
+        if query_mode == 'aggregated':
+            base_numeric_cols = st.session_state.query_result.get('numeric_cols')
+        render_data_visualization(
+            df_converted,
+            visualization_table_name,
+            query_mode=query_mode,
+            base_numeric_cols=base_numeric_cols
+        )
 
     st.subheader("데이터 조회")
 
