@@ -205,7 +205,8 @@ def main():
                     'success': True,
                     'query_mode': 'aggregated',
                     'interval': agg_result['interval'],
-                    'numeric_cols': agg_result.get('numeric_cols', [])
+                    'numeric_cols': agg_result.get('numeric_cols', []),
+                    'row_count': row_count
                 }
                 ui_adapter.presenter.show_message(MessageContext(
                     level='success',
@@ -231,6 +232,7 @@ def main():
             if duckdb_query_result['success']:
                 # Add query mode info
                 duckdb_query_result['query_mode'] = 'detailed'
+                duckdb_query_result['row_count'] = row_count
                 st.session_state.query_result = duckdb_query_result
             else:
                 st.session_state.query_result = None            
@@ -269,16 +271,23 @@ def main():
     st.subheader("데이터 조회")
 
     if st.session_state.query_result and st.session_state.query_result.get('success'):
-        # Get df_converted from query_result to avoid variable scope issues
-        df_converted = st.session_state.query_result.get('df_converted')
-
-        if df_converted is not None:
-            # Display row count
+        query_result = st.session_state.query_result
+        df_converted = query_result.get('df_converted')
+        query_mode = query_result.get('query_mode', 'detailed')
+        table_name_for_grid = query_result.get('table_name')
+        total_rows = query_result.get('row_count')
+        if total_rows is None and table_name_for_grid:
+            total_rows = get_table_row_count(duckdb, table_name_for_grid)
+        if total_rows is None and df_converted is not None:
             total_rows = len(df_converted)
-            ui_adapter.presenter.show_message(MessageContext(
-                level='info',
-                message=f"📊 총 {total_rows:,}행 조회됨"
-            ))
+
+        if df_converted is not None or query_mode == 'aggregated':
+            # Display row count
+            if total_rows is not None:
+                ui_adapter.presenter.show_message(MessageContext(
+                    level='info',
+                    message=f"📊 총 {total_rows:,}행 조회됨"
+                ))
 
             # Limit displayed rows to prevent MessageSizeError
             max_display_rows = st.number_input(
@@ -290,16 +299,38 @@ def main():
                 help="브라우저 성능을 위해 표시되는 행 수를 제한합니다."
             )
 
-            # Show data with row limit - add spinner to prevent UI blocking
-            with st.spinner(f"데이터 테이블 렌더링 중... ({min(total_rows, max_display_rows):,}행)"):
-                if total_rows > max_display_rows:
-                    ui_adapter.presenter.show_message(MessageContext(
-                        level='warning',
-                        message=f"⚠️ 성능을 위해 {max_display_rows:,}행만 표시합니다. (전체: {total_rows:,}행)"
-                    ))
-                    st.dataframe(df_converted.head(max_display_rows))
+            grid_df = None
+            if query_mode == 'aggregated' and table_name_for_grid:
+                raw_result = query_table_with_conversion(
+                    duckdb,
+                    table_name_for_grid,
+                    limit=max_display_rows
+                )
+                if raw_result.get('success'):
+                    grid_df = raw_result.get('df_converted')
+                    if grid_df is None:
+                        grid_df = raw_result.get('df')
                 else:
-                    st.dataframe(df_converted)
+                    ui_adapter.presenter.show_message(MessageContext(
+                        level='error',
+                        message=f"원본 데이터 조회 오류: {raw_result.get('error', 'Unknown error')}"
+                    ))
+            else:
+                grid_df = df_converted
+
+            if grid_df is not None:
+                display_rows = min(total_rows, max_display_rows) if total_rows is not None else min(len(grid_df), max_display_rows)
+
+                # Show data with row limit - add spinner to prevent UI blocking
+                with st.spinner(f"데이터 테이블 렌더링 중... ({display_rows:,}행)"):
+                    if total_rows is not None and total_rows > max_display_rows:
+                        ui_adapter.presenter.show_message(MessageContext(
+                            level='warning',
+                            message=f"⚠️ 성능을 위해 {max_display_rows:,}행만 표시합니다. (전체: {total_rows:,}행)"
+                        ))
+                        st.dataframe(grid_df.head(max_display_rows))
+                    else:
+                        st.dataframe(grid_df)
 
 if __name__ == "__main__":
     main()
