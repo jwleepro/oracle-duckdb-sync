@@ -136,11 +136,18 @@ def test_131_incremental_sync_e2e_real_db():
         # Load configuration from .env file
         config = load_config()
         
-        # Get table configuration from .env
-        oracle_table = os.getenv('SYNC_ORACLE_TABLE', 'SOURCE_TABLE')
-        duckdb_table = os.getenv('SYNC_DUCKDB_TABLE') or oracle_table.lower()
-        time_column = os.getenv('SYNC_TIME_COLUMN', 'TIMESTAMP_COL').split(',')[0].strip()  # Use first column
-        primary_key = os.getenv('SYNC_PRIMARY_KEY', 'ID')
+        # Get table configuration from config object
+        oracle_schema = config.sync_oracle_schema
+        oracle_table_name = config.sync_oracle_table or "SOURCE_TABLE"
+        
+        if oracle_schema:
+            oracle_table = f"{oracle_schema}.{oracle_table_name}"
+        else:
+            oracle_table = oracle_table_name
+            
+        duckdb_table = config.sync_duckdb_table or oracle_table_name.lower()
+        time_column = config.sync_time_column.split(',')[0].strip()
+        primary_key = config.sync_primary_key
 
         print(f"\n[TEST-131] Incremental Sync E2E Test")
         print(f"  Oracle table: {oracle_table}")
@@ -223,7 +230,7 @@ def test_131_incremental_sync_e2e_real_db():
             # Perform full sync with 10k batch size
             start_time = time.time()
             total_synced = engine.sync_in_batches(
-                oracle_table=oracle_table,
+                oracle_table_name=oracle_table,
                 duckdb_table=duckdb_table,
                 batch_size=10000
             )

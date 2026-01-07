@@ -1,5 +1,6 @@
 import os
 from dataclasses import dataclass
+from typing import List
 from dotenv import load_dotenv
 
 @dataclass
@@ -12,6 +13,9 @@ class Config:
 
     duckdb_path: str
     duckdb_database: str = "main"
+    
+    # Oracle Client settings
+    oracle_client_directories: List[str] = None
     
     # Sync target table configuration
     sync_oracle_schema: str = ""
@@ -28,6 +32,7 @@ class Config:
     oracle_fetch_batch_size: int = 10000
     sync_max_duration_seconds: int = 3600
     test_sync_default_row_limit: int = 100000
+    default_sync_start_time: str = "2020-01-01 00:00:00"
 
     # Progress reporting
     progress_refresh_interval_seconds: float = 0.5
@@ -99,6 +104,19 @@ def load_config(load_dotenv_file: bool = True) -> Config:
             "Example: DUCKDB_TIME_COLUMN=TRAN_TIME"
         )
 
+    # Parse Oracle Client directories
+    oracle_client_dirs_env = os.getenv("ORACLE_CLIENT_DIRECTORIES")
+    if oracle_client_dirs_env:
+        oracle_client_directories = [d.strip() for d in oracle_client_dirs_env.split(",") if d.strip()]
+    else:
+        # Default fallback paths for Windows
+        oracle_client_directories = [
+            r'D:\instantclient_23_0',
+            r'C:\instantclient_23_0',
+            r'D:\oracle\instantclient',
+            r'C:\oracle\instantclient'
+        ]
+
     return Config(
         oracle_host=os.getenv("ORACLE_HOST"),
         oracle_port=oracle_port,
@@ -109,6 +127,8 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         duckdb_path=os.getenv("DUCKDB_PATH"),
         duckdb_database=os.getenv("DUCKDB_DATABASE", "main"),
         
+        oracle_client_directories=oracle_client_directories,
+        
         sync_oracle_schema=os.getenv("SYNC_ORACLE_SCHEMA", ""),
         sync_oracle_table=sync_oracle_table,
         sync_duckdb_table=sync_duckdb_table,
@@ -118,9 +138,10 @@ def load_config(load_dotenv_file: bool = True) -> Config:
 
         # Performance settings
         sync_batch_size=int(os.getenv("SYNC_BATCH_SIZE", "10000")),
-        oracle_fetch_batch_size=int(os.getenv("ORACLE_FETCH_BATCH_SIZE", "1000")),
+        oracle_fetch_batch_size=int(os.getenv("ORACLE_FETCH_BATCH_SIZE", "10000")),
         sync_max_duration_seconds=int(os.getenv("SYNC_MAX_DURATION_SECONDS", "3600")),
         test_sync_default_row_limit=int(os.getenv("TEST_SYNC_DEFAULT_ROW_LIMIT", "100000")),
+        default_sync_start_time=os.getenv("DEFAULT_SYNC_START_TIME", "2020-01-01 00:00:00"),
 
         # Progress reporting
         progress_refresh_interval_seconds=float(os.getenv("PROGRESS_REFRESH_INTERVAL_SECONDS", "0.5")),

@@ -11,7 +11,7 @@ from oracle_duckdb_sync.config import Config
 # TNS_ADMIN 환경 변수가 설정되어 있으면 해당 디렉토리의 sqlnet.ora를 사용
 _oracle_client_initialized = False
 
-def _ensure_oracle_client():
+def _ensure_oracle_client(config=None):
     """Oracle Client를 초기화합니다. 이미 초기화되었으면 무시합니다."""
     global _oracle_client_initialized
     if not _oracle_client_initialized:
@@ -19,13 +19,20 @@ def _ensure_oracle_client():
             # Oracle Home 경로 확인
             oracle_home = os.environ.get('ORACLE_HOME')
             if not oracle_home:
-                # ORACLE_HOME이 없으면 기본 경로 시도
-                default_paths = [
-                    r'D:\instantclient_23_0',
-                    r'C:\instantclient_23_0',
-                    r'D:\oracle\instantclient',
-                    r'C:\oracle\instantclient'
-                ]
+                # config에서 경로 확인
+                default_paths = []
+                if config and config.oracle_client_directories:
+                    default_paths = config.oracle_client_directories
+                
+                # Fallback defaults if config not provided
+                if not default_paths:
+                    default_paths = [
+                        r'D:\instantclient_23_0',
+                        r'C:\instantclient_23_0',
+                        r'D:\oracle\instantclient',
+                        r'C:\oracle\instantclient'
+                    ]
+
                 for path in default_paths:
                     if os.path.exists(path):
                         oracle_home = path
@@ -97,7 +104,7 @@ class OracleSource:
         """
         try:
             # Oracle 11.2를 위해 Thick 모드 초기화
-            _ensure_oracle_client()
+            _ensure_oracle_client(self.config)
             
             # DSN 연결 문자열 생성
             dsn = f"{self.config.oracle_host}:{self.config.oracle_port}/{self.config.oracle_service_name}"

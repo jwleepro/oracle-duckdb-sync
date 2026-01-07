@@ -23,7 +23,7 @@ class SyncWorker:
             progress_queue: Optional queue.Queue for progress messages
         """
         self.config = config
-        self.sync_params = sync_params
+        self.sync_params = sync_params or {}
         self.progress_queue = progress_queue
         self.status = 'idle'  # idle, running, paused, completed, error
         self.thread = None
@@ -80,18 +80,33 @@ class SyncWorker:
             # Create progress callback
             progress_callback = self._create_progress_callback() if self.progress_queue else None
             
+            def get_param(key, default=None):
+                if isinstance(self.sync_params, dict):
+                    return self.sync_params.get(key, default)
+                return getattr(self.sync_params, key, default)
+
             # Determine sync type and execute
-            sync_type = self.sync_params.get('sync_type', 'test')
-            
-            oracle_schema = self.config.sync_oracle_schema
-            oracle_table = self.config.sync_oracle_table
-            oracle_table_name = ""
-            if oracle_schema:
-                oracle_table_name = f"{oracle_schema}.{oracle_table}"
-            else:
-                oracle_table_name = oracle_table
-            duckdb_table = self.config.sync_duckdb_table
-            primary_key = self.config.sync_primary_key
+            sync_type = get_param('sync_type', 'test')
+
+            oracle_table_name = get_param('oracle_table') or get_param('table_name')
+            if not oracle_table_name:
+                oracle_schema = self.config.sync_oracle_schema
+                oracle_table = self.config.sync_oracle_table
+                if oracle_schema and oracle_table:
+                    oracle_table_name = f"{oracle_schema}.{oracle_table}"
+                else:
+                    oracle_table_name = oracle_table
+
+            duckdb_table = get_param('duckdb_table') or self.config.sync_duckdb_table
+            if not duckdb_table and oracle_table_name:
+                duckdb_table = oracle_table_name.split('.')[-1].lower()
+
+            primary_key = get_param('primary_key') or self.config.sync_primary_key
+
+            if not oracle_table_name:
+                raise ValueError("Oracle table name is required for sync")
+            if not duckdb_table:
+                raise ValueError("DuckDB table name is required for sync")
             
             # Note: We need to modify sync methods to accept progress_callback
             # For now, we'll use a wrapper approach with monkey patching
@@ -99,7 +114,7 @@ class SyncWorker:
                 self._wrap_sync_engine_with_callback(sync_engine, progress_callback)
             
             if sync_type == 'test':
-                row_limit = self.sync_params.get('row_limit', 10000)
+                row_limit = get_param('row_limit', 10000)
                 self.total_rows = sync_engine.test_sync(
                     oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,
@@ -113,9 +128,12 @@ class SyncWorker:
                     primary_key=primary_key
                 )
             elif sync_type == 'incremental':
-                time_column = self.sync_params['time_column']
-                last_value = self.sync_params['last_value']
-                primary_key = self.sync_params.get('primary_key')  # Get primary_key for UPSERT
+                time_column = get_param('time_column', self.config.sync_time_column)
+                last_value = get_param('last_value')
+                if not time_column:
+                    raise ValueError("time_column is required for incremental sync")
+                if last_value is None:
+                    raise ValueError("last_value is required for incremental sync")
                 self.total_rows = sync_engine.incremental_sync(
                     oracle_table_name=oracle_table_name,
                     duckdb_table=duckdb_table,

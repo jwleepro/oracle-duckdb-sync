@@ -26,12 +26,6 @@ from oracle_duckdb_sync.ui.session_state import (
     release_sync_lock,
     SYNC_PROGRESS_REFRESH_INTERVAL
 )
-from oracle_duckdb_sync.data.query_core import (
-    get_available_tables,
-    determine_default_table_name,
-    get_table_row_count,
-    query_table_with_conversion
-)
 # Legacy imports for backward compatibility (will be removed in Phase 3)
 from oracle_duckdb_sync.data.query import (
     query_duckdb_table_cached,
@@ -147,20 +141,20 @@ def main():
                          disabled=(st.session_state.sync_status == 'running')):
         handle_full_sync(config, table_name, primary_key, time_column, duckdb)
         
-    #메인 화면
-    # Show available tables in DuckDB
-    table_list = get_available_tables(duckdb)
+    # Determine default table name
+    # Use QueryService instead of query_core functions
+    table_list = query_service.get_available_tables()
 
     # 🆕 Display table list using UI adapter
     show_table_list(table_list, ui_adapter)
 
     # Determine default table name
-    default_table = determine_default_table_name(config, table_list)    
+    default_table = query_service.determine_default_table_name(config, table_list)    
     
     duckdb_table_name = st.text_input("조회할 테이블명", value=default_table, help="DuckDB 테이블명 (소문자, 스키마 없이)")
 
     # Query DuckDB table with caching for type conversion
-    row_count = get_table_row_count(duckdb, duckdb_table_name)
+    row_count = query_service.get_table_row_count(duckdb_table_name)
 
     # Resolution selector for time bucket aggregation
     st.subheader("📊 데이터 조회 옵션")
@@ -301,19 +295,19 @@ def main():
 
             grid_df = None
             if query_mode == 'aggregated' and table_name_for_grid:
-                raw_result = query_table_with_conversion(
-                    duckdb,
+                # Use QueryService for raw data fetch
+                raw_result = query_service.query_table(
                     table_name_for_grid,
-                    limit=max_display_rows
+                    limit=max_display_rows,
+                    convert_types=True
                 )
-                if raw_result.get('success'):
-                    grid_df = raw_result.get('df_converted')
-                    if grid_df is None:
-                        grid_df = raw_result.get('df')
+                
+                if raw_result.success:
+                    grid_df = raw_result.data
                 else:
                     ui_adapter.presenter.show_message(MessageContext(
                         level='error',
-                        message=f"원본 데이터 조회 오류: {raw_result.get('error', 'Unknown error')}"
+                        message=f"원본 데이터 조회 오류: {raw_result.error or 'Unknown error'}"
                     ))
             else:
                 grid_df = df_converted

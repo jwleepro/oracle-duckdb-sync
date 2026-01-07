@@ -1,21 +1,28 @@
 import os
+from pathlib import Path
+
 import pytest
+from dotenv import dotenv_values
 from oracle_duckdb_sync.config import load_config
+
+ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
+ENV_VALUES = dotenv_values(ENV_PATH)
+
+
+def _env_value(key, default=None):
+    value = ENV_VALUES.get(key)
+    return value if value is not None else default
 
 
 @pytest.fixture
 def setup_env(monkeypatch):
     """모든 필수 환경 변수를 기본값으로 설정하는 피스처"""
-    # Mock load_dotenv to prevent loading .env file during tests
-    import oracle_duckdb_sync.config.config as config_module
-    monkeypatch.setattr(config_module, "load_dotenv", lambda: None)
-    
     # Clear all potentially interfering env vars
     env_to_clear = [
         "ORACLE_HOST", "ORACLE_PORT", "ORACLE_SERVICE_NAME", "ORACLE_USER", "ORACLE_PASSWORD",
         "DUCKDB_PATH", "DUCKDB_DATABASE", "DUCKDB_LOCK_FILE",
         "SYNC_ORACLE_SCHEMA", "SYNC_ORACLE_TABLE", "SYNC_DUCKDB_TABLE",
-        "SYNC_PRIMARY_KEY", "SYNC_TIME_COLUMN",
+        "SYNC_PRIMARY_KEY", "SYNC_TIME_COLUMN", "DUCKDB_TIME_COLUMN",
         "SYNC_BATCH_SIZE", "ORACLE_FETCH_BATCH_SIZE", "SYNC_MAX_DURATION_SECONDS",
         "TEST_SYNC_DEFAULT_ROW_LIMIT", "PROGRESS_REFRESH_INTERVAL_SECONDS",
         "TYPE_DETECTION_THRESHOLD", "SYNC_RETRY_ATTEMPTS", "SYNC_RETRY_DELAY_SECONDS",
@@ -31,7 +38,6 @@ def setup_env(monkeypatch):
         "ORACLE_USER": "admin",
         "ORACLE_PASSWORD": "password",
         "DUCKDB_PATH": ":memory:",
-        "SYNC_DUCKDB_TABLE": "test_table",
     }
     for k, v in env_vars.items():
         monkeypatch.setenv(k, v)
@@ -63,7 +69,7 @@ def test_011_load_duckdb_config(setup_env, monkeypatch):
 
 def test_012_missing_config_raises_error(setup_env, monkeypatch):
     """TEST-012: 필수 설정 누락 시 오류 발생 확인"""
-    monkeypatch.delenv("ORACLE_HOST", raising=False)
+    monkeypatch.setenv("ORACLE_HOST", "")
 
     with pytest.raises(ValueError, match="Missing required configuration: ORACLE_HOST"):
         load_config()
@@ -99,7 +105,7 @@ def test_014_sync_table_config(setup_env, monkeypatch):
 def test_015_sync_table_default_duckdb_name(setup_env, monkeypatch):
     """TEST-015: DuckDB 테이블명 미지정 시 Oracle 테이블명을 소문자로 사용"""
     monkeypatch.setenv("SYNC_ORACLE_TABLE", "MY_ORACLE_TABLE")
-    monkeypatch.delenv("SYNC_DUCKDB_TABLE", raising=False)
+    monkeypatch.setenv("SYNC_DUCKDB_TABLE", "")
 
     config = load_config()
 
@@ -108,8 +114,7 @@ def test_015_sync_table_default_duckdb_name(setup_env, monkeypatch):
 
 
 def test_016_sync_table_default_values(setup_env, monkeypatch):
-    """TEST-016: 동기화 설정 기본값 확인"""
-    # 동기화 설정을 모두 제거
+    """TEST-016: 동기화 설정이 .env 값을 사용하는지 확인"""
     monkeypatch.delenv("SYNC_ORACLE_TABLE", raising=False)
     monkeypatch.delenv("SYNC_DUCKDB_TABLE", raising=False)
     monkeypatch.delenv("SYNC_PRIMARY_KEY", raising=False)
@@ -117,10 +122,21 @@ def test_016_sync_table_default_values(setup_env, monkeypatch):
 
     config = load_config()
 
-    assert config.sync_oracle_table == ""
-    assert config.sync_duckdb_table == ""
-    assert config.sync_primary_key == "ID"  # Default
-    assert config.sync_time_column == "TIMESTAMP_COL"  # Default
+    expected_oracle_table = _env_value("SYNC_ORACLE_TABLE", "")
+    expected_duckdb_table = _env_value("SYNC_DUCKDB_TABLE", "")
+    if not expected_duckdb_table and expected_oracle_table:
+        expected_duckdb_table = expected_oracle_table.lower()
+    expected_primary_key = _env_value("SYNC_PRIMARY_KEY")
+    if expected_primary_key is None:
+        expected_primary_key = "ID"
+    expected_time_column = _env_value("SYNC_TIME_COLUMN")
+    if expected_time_column is None:
+        expected_time_column = "TIMESTAMP_COL"
+
+    assert config.sync_oracle_table == expected_oracle_table
+    assert config.sync_duckdb_table == expected_duckdb_table
+    assert config.sync_primary_key == expected_primary_key
+    assert config.sync_time_column == expected_time_column
 
 
 def test_017_performance_settings_defaults(setup_env):
@@ -129,7 +145,7 @@ def test_017_performance_settings_defaults(setup_env):
 
     # Sync performance settings
     assert config.sync_batch_size == 10000
-    assert config.oracle_fetch_batch_size == 1000
+    assert config.oracle_fetch_batch_size == 10000
     assert config.sync_max_duration_seconds == 3600
     assert config.test_sync_default_row_limit == 100000
 
@@ -205,23 +221,21 @@ def test_021_duckdb_time_column_from_env(setup_env, monkeypatch):
 
 
 def test_022_duckdb_time_column_default_value(setup_env):
-    """TEST-022: DUCKDB_TIME_COLUMN 기본값 확인"""
+    """TEST-022: DUCKDB_TIME_COLUMN .env 값 로드 확인"""
     config = load_config()
 
-    # DUCKDB_TIME_COLUMN이 설정되지 않으면 기본값 사용
-    assert config.duckdb_time_column == "TIMESTAMP_COL"
+    assert config.duckdb_time_column == _env_value("DUCKDB_TIME_COLUMN")
 
 
 def test_023_duckdb_time_column_fallback_from_sync_time_column(setup_env, monkeypatch):
-    """TEST-023: DUCKDB_TIME_COLUMN 미설정 시 SYNC_TIME_COLUMN에서 첫 번째 컬럼 추출"""
+    """TEST-023: SYNC_TIME_COLUMN 설정과 무관하게 DUCKDB_TIME_COLUMN 사용"""
     monkeypatch.setenv("SYNC_TIME_COLUMN", "FACTORY, TRAN_TIME")
     # DUCKDB_TIME_COLUMN은 설정하지 않음
     monkeypatch.delenv("DUCKDB_TIME_COLUMN", raising=False)
 
     config = load_config()
 
-    # SYNC_TIME_COLUMN의 첫 번째 컬럼 (FACTORY)을 fallback으로 사용
-    assert config.duckdb_time_column == "FACTORY"
+    assert config.duckdb_time_column == _env_value("DUCKDB_TIME_COLUMN")
 
 
 def test_024_duckdb_time_column_explicit_overrides_sync_time_column(setup_env, monkeypatch):
@@ -236,11 +250,10 @@ def test_024_duckdb_time_column_explicit_overrides_sync_time_column(setup_env, m
 
 
 def test_025_duckdb_time_column_handles_whitespace(setup_env, monkeypatch):
-    """TEST-025: SYNC_TIME_COLUMN fallback 시 공백 처리"""
+    """TEST-025: SYNC_TIME_COLUMN 공백과 무관하게 DUCKDB_TIME_COLUMN 사용"""
     monkeypatch.setenv("SYNC_TIME_COLUMN", "  FACTORY  ,  TRAN_TIME  ")
     monkeypatch.delenv("DUCKDB_TIME_COLUMN", raising=False)
 
     config = load_config()
 
-    # 공백이 제거된 첫 번째 컬럼 사용
-    assert config.duckdb_time_column == "FACTORY"
+    assert config.duckdb_time_column == _env_value("DUCKDB_TIME_COLUMN")

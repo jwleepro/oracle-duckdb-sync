@@ -558,3 +558,62 @@ def test_152_pause_state_transitions(mock_config):
         
         # Pausing completed worker should be safe
         worker.pause()  # Should not crash
+
+    def test_sync_params_priority_over_config(mock_config):
+        """Test that sync_params takes priority over config values"""
+        from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
+        
+        # Patch SyncEngine where it is imported in sync_worker module
+        with patch("oracle_duckdb_sync.scheduler.sync_worker.SyncEngine") as mock_engine_cls:
+            mock_engine = mock_engine_cls.return_value
+            mock_engine.test_sync.return_value = 100
+        # Configure config with default values
+        mock_config.sync_oracle_table = "CONFIG_ORACLE_TABLE"
+        mock_config.sync_duckdb_table = "config_duckdb_table"
+        mock_config.sync_primary_key = "CONFIG_PK"
+        
+        # 1. Test with full sync_params (should override config)
+        worker = SyncWorker(
+            config=mock_config,
+            sync_params={
+                'sync_type': 'test',
+                'oracle_table': 'PARAM_ORACLE_TABLE',
+                'duckdb_table': 'param_duckdb_table',
+                'primary_key': 'PARAM_PK',
+                'row_limit': 500
+            }
+        )
+        
+        worker.start()
+        worker.thread.join(timeout=2.0)
+        
+        # Verify SyncEngine was called with params, not config
+        mock_engine.test_sync.assert_called_with(
+            oracle_table_name='PARAM_ORACLE_TABLE',
+            duckdb_table='param_duckdb_table',
+            primary_key='PARAM_PK',
+            row_limit=500
+        )
+        
+        # 2. Test with partial sync_params (should fallback to config)
+        worker_fallback = SyncWorker(
+            config=mock_config,
+            sync_params={
+                'sync_type': 'test',
+                # oracle_table missing -> fallback to config
+                # duckdb_table missing -> fallback to config
+                # primary_key missing -> fallback to config
+                'row_limit': 100
+            }
+        )
+        
+        worker_fallback.start()
+        worker_fallback.thread.join(timeout=2.0)
+        
+        # Verify fallback to config values
+        mock_engine.test_sync.assert_called_with(
+            oracle_table_name='CONFIG_ORACLE_TABLE',
+            duckdb_table='config_duckdb_table',
+            primary_key='CONFIG_PK',
+            row_limit=100
+        )

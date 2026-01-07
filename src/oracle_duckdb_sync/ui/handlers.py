@@ -204,13 +204,13 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
             handler_logger.info(f"Performing full sync for new table: {duckdb_table}")
         else:
             # Incremental sync
-            from oracle_duckdb_sync.sync_engine import SyncEngine
+            from oracle_duckdb_sync.database.sync_engine import SyncEngine
             sync_engine = SyncEngine(config)
             
             # Load last sync time
             last_sync_time = sync_engine.load_state(table_name)
             if not last_sync_time:
-                last_sync_time = "2020-01-01 00:00:00"
+                last_sync_time = config.default_sync_start_time
             
             # time_column is already parsed by config.duckdb_time_column
             sync_params = {

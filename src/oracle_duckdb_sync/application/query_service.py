@@ -68,6 +68,28 @@ class QueryService:
             logger.error(f"Failed to get row count for {table_name}: {e}")
             return 0
     
+    def determine_default_table_name(self, config: 'Config', table_list: Optional[List[str]] = None) -> str:
+        """
+        Determine default table name for query based on configuration.
+        
+        Args:
+            config: Configuration object
+            table_list: List of available tables (optional, will fetch if None)
+            
+        Returns:
+            Default table name
+        """
+        if config.sync_duckdb_table:
+            return config.sync_duckdb_table
+        
+        if table_list is None:
+            table_list = self.get_available_tables()
+            
+        if table_list:
+            return table_list[0]
+        else:
+            return "sync_table"
+
     def query_table(self, 
                     table_name: str, 
                     limit: int = 10000,

@@ -10,9 +10,9 @@ from dataclasses import dataclass
 from queue import Queue
 import threading
 
-from ..scheduler.sync_worker import SyncWorker, SyncParameters
+from ..scheduler.sync_worker import SyncWorker
 from ..config.config import Config
-from ..state.sync_lock import SyncLock
+from ..state import SyncLock
 from ..log.logger import setup_logger
 
 logger = setup_logger(__name__)
@@ -46,7 +46,7 @@ class SyncService:
         return self._status
     
     def start_sync(self, 
-                   sync_params: SyncParameters,
+                   sync_params: Dict[str, Any],
                    progress_callback: Optional[Callable] = None) -> bool:
         """
         Start synchronization process.
@@ -58,16 +58,27 @@ class SyncService:
         Returns:
             True if sync started successfully, False otherwise
         """
-        # Validate table name
-        if not sync_params.table_name or sync_params.table_name.strip() == '':
+        if sync_params is None:
+            logger.error("Sync parameters are required for synchronization")
+            return False
+        if not isinstance(sync_params, dict):
+            logger.error("Sync parameters must be provided as a dict")
+            return False
+
+        table_name = (
+            sync_params.get('oracle_table')
+            or sync_params.get('table_name')
+            or self.config.sync_oracle_table
+        )
+        if not table_name or str(table_name).strip() == '':
             logger.error("Table name is required for synchronization")
             return False
         
         # Try to acquire lock
         sync_lock = SyncLock()
         
-        if not sync_lock.try_acquire():
-            lock_info = sync_lock.get_lock_info()
+        if not sync_lock.acquire(timeout=1):
+            lock_info = sync_lock.get_lock_info() or {}
             logger.warning(f"Another sync is running (PID: {lock_info.get('pid', 'unknown')})")
             return False
         
@@ -76,7 +87,9 @@ class SyncService:
             self._progress_queue = Queue()
             
             # Create and start worker
-            worker = SyncWorker(self.config, sync_params, self._progress_queue)
+            params = dict(sync_params)
+            params.setdefault('oracle_table', table_name)
+            worker = SyncWorker(self.config, params, self._progress_queue)
             worker.start()
             
             # Store references
@@ -93,7 +106,7 @@ class SyncService:
             if progress_callback:
                 self._start_progress_monitoring(progress_callback)
             
-            logger.info(f"Sync started for table: {sync_params.table_name}")
+            logger.info(f"Sync started for table: {table_name}")
             return True
             
         except Exception as e:
