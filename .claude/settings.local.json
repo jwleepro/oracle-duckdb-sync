@@ -3,5 +3,10 @@
   "enabledMcpjsonServers": [
     "serena",
     "context7"
-  ]
+  ],
+  "permissions": {
+    "allow": [
+      "Bash(dir /s \"D:\\\\00_TestProject\\\\oracle-duckdb-sync\")"
+    ]
+  }
 }
