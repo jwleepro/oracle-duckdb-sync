@@ -261,7 +261,7 @@ class TestDetectAndConvertTypes:
             'name': ['Alice', 'Bob', 'Charlie']
         })
         
-        result = detect_and_convert_types(df)
+        result, _ = detect_and_convert_types(df)
         
         # Check that numeric columns were converted
         assert pd.api.types.is_numeric_dtype(result['id'])
@@ -282,7 +282,7 @@ class TestDetectAndConvertTypes:
             'name': ['Alice', 'Bob', 'Charlie']
         })
         
-        result = detect_and_convert_types(df)
+        result, _ = detect_and_convert_types(df)
         
         # All types should remain the same
         assert pd.api.types.is_numeric_dtype(result['id'])
@@ -293,7 +293,7 @@ class TestDetectAndConvertTypes:
     def test_empty_dataframe(self):
         """Test with empty dataframe."""
         df = pd.DataFrame()
-        result = detect_and_convert_types(df)
+        result, _ = detect_and_convert_types(df)
         
         assert result.empty
     
@@ -308,7 +308,7 @@ class TestDetectAndConvertTypes:
             'STATUS': ['COMPLETED', 'PENDING', 'COMPLETED', 'SHIPPED']
         })
         
-        result = detect_and_convert_types(df)
+        result, _ = detect_and_convert_types(df)
         
         # Verify conversions
         assert pd.api.types.is_numeric_dtype(result['ORDER_ID'])

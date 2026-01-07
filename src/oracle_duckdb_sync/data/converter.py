@@ -250,7 +250,7 @@ def convert_column_to_type(column: pd.Series, target_type: str) -> pd.Series:
         return column
 
 
-def detect_and_convert_types(df: pd.DataFrame, use_parallel: bool = True, max_workers: int = 4) -> pd.DataFrame:
+def detect_and_convert_types(df: pd.DataFrame, use_parallel: bool = True, max_workers: int = 4) -> tuple[pd.DataFrame, dict]:
     """
     Automatically detect and convert string columns to appropriate types (optimized).
     
@@ -272,7 +272,7 @@ def detect_and_convert_types(df: pd.DataFrame, use_parallel: bool = True, max_wo
         Dataframe with converted types
     """
     if df.empty:
-        return df
+        return df, {}
     
     df_converted = df.copy()
     conversion_summary = {
@@ -291,7 +291,7 @@ def detect_and_convert_types(df: pd.DataFrame, use_parallel: bool = True, max_wo
     
     if not columns_to_process:
         logger.info("No columns to convert")
-        return df_converted
+        return df_converted, conversion_summary
     
     def process_column(col):
         """Process a single column for type conversion."""
@@ -351,7 +351,7 @@ def detect_and_convert_types(df: pd.DataFrame, use_parallel: bool = True, max_wo
                    f"{len(conversion_summary['datetime'])} datetime, "
                    f"{len(conversion_summary['unchanged'])} unchanged")
     
-    return df_converted
+    return df_converted, conversion_summary
 
 
 

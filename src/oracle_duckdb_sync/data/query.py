@@ -188,7 +188,7 @@ def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) 
         })
         
         query_logger.info("Applying automatic type conversion to detect numeric and datetime columns")
-        df_converted = detect_and_convert_types(df)
+        df_converted, _ = detect_and_convert_types(df)
         
         # Show conversion results
         original_types = df.dtypes.to_dict()
@@ -424,7 +424,7 @@ def _cached_convert_dataframe(data: list, columns: list, table_name: str, select
         if selected_conversions is None:
             # Automatic conversion (default behavior)
             query_logger.info(f"Applying automatic type conversion to {table_name}: {len(df)} rows")
-            df_converted = detect_and_convert_types(df)
+            df_converted, _ = detect_and_convert_types(df)
         else:
             # Convert only selected columns
             query_logger.info(f"Applying selective type conversion to {table_name}: {len(selected_conversions)} columns")
@@ -533,7 +533,7 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
         df_new = pd.DataFrame(data, columns=columns)
         try:
             with st.spinner(f"새 데이터 타입 변환 중... ({fetch_result['row_count']}행)"):
-                df_new_converted = detect_and_convert_types(df_new)
+                df_new_converted, _ = detect_and_convert_types(df_new)
         except Exception as e:
             st.error(f"타입 변환 오류: {e}")
             return {
@@ -620,7 +620,7 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
         df_raw = pd.DataFrame(data, columns=columns)
         try:
             with st.spinner(f"데이터 타입 자동 변환 중... ({len(df_raw)}행)"):
-                df_converted = detect_and_convert_types(df_raw)
+                df_converted, _ = detect_and_convert_types(df_raw)
         except Exception as e:
             st.error(f"타입 변환 오류: {e}")
             return {
@@ -741,7 +741,7 @@ def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str,
         if saved_conversions:
             df_new_converted = convert_selected_columns(df_new, saved_conversions)
         else:
-            df_new_converted = detect_and_convert_types(df_new)
+            df_new_converted, _ = detect_and_convert_types(df_new)
         
         # Merge with existing cache
         existing_df = st.session_state.converted_data_cache.get(cache_key)
