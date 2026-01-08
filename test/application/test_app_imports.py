@@ -8,8 +8,8 @@ from pathlib import Path
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent / 'src'))
 
-def test_imports():
-    """Test importing all major modules."""
+def test_001_imports():
+    """TEST-001~004: pytest 기본 실행 및 주요 모듈 import 확인"""
     errors = []
     success = []
     
@@ -66,4 +66,4 @@ def test_imports():
         return 0
 
 if __name__ == '__main__':
-    sys.exit(test_imports())
+    sys.exit(test_001_imports())
