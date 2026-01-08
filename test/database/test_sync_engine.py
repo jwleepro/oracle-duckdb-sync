@@ -179,3 +179,82 @@ def test_140_sync_state_save_and_load(tmp_path, mock_config):
         engine.save_state("TABLE_NEW", "2024-01-05 14:00:00", file_path=str(corrupted_file))
         loaded = engine.load_state("TABLE_NEW", file_path=str(corrupted_file))
         assert loaded == "2024-01-05 14:00:00"
+
+
+def test_073_parallel_batch_processing(mock_config):
+    """TEST-073: 병렬 처리 검증
+
+    Verify that the sync engine can process multiple batches in parallel
+    to improve performance on large datasets. This test ensures:
+    1. Multiple tables can be synced concurrently
+    2. All parallel operations complete successfully
+    3. No race conditions occur during concurrent operations
+    """
+    from concurrent.futures import ThreadPoolExecutor
+    import threading
+
+    # Helper class to simulate database fetch with thread-safe tracking
+    class FetchSimulator:
+        """Simulates database fetch operations with thread-safe call tracking."""
+        def __init__(self):
+            self.call_count = 0
+            self.lock = threading.Lock()
+            self.completed_tables = set()
+
+        def fetch(self, *args, **kwargs):
+            """Simulate fetch with alternating data/empty responses."""
+            with self.lock:
+                self.call_count += 1
+                current_count = self.call_count
+
+            # Return data on odd calls, empty on even calls
+            if current_count % 2 == 1:
+                return [(1, "Data"), (2, "Data")]
+            return []
+
+        def mark_complete(self, table_name: str):
+            """Thread-safe marking of completed tables."""
+            with self.lock:
+                self.completed_tables.add(table_name)
+
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+
+        mock_oracle = mock_oracle_cls.return_value
+        mock_duckdb = mock_duckdb_cls.return_value
+
+        # Simulate data for 3 tables
+        tables = ["TABLE_A", "TABLE_B", "TABLE_C"]
+
+        # Create fetch simulator
+        simulator = FetchSimulator()
+        mock_oracle.fetch_batch.side_effect = simulator.fetch
+
+        engine = SyncEngine(mock_config)
+
+        # Sync tables in parallel
+        def sync_and_track(table):
+            """Helper to sync and track completion."""
+            result = engine.sync_in_batches(f"ORACLE_{table}", f"DUCK_{table}", batch_size=2)
+            simulator.mark_complete(table)
+            return result
+
+        with ThreadPoolExecutor(max_workers=3) as executor:
+            futures = [
+                executor.submit(sync_and_track, table)
+                for table in tables
+            ]
+            # Wait for all to complete and verify no exceptions
+            results = []
+            for future in futures:
+                results.append(future.result())
+
+        # Verify all tables completed successfully
+        assert len(simulator.completed_tables) == 3, \
+            f"Expected 3 tables to complete, but only {len(simulator.completed_tables)} completed"
+        assert simulator.completed_tables == set(tables), \
+            f"Expected tables {set(tables)}, but got {simulator.completed_tables}"
+
+        # Verify all inserts completed successfully
+        assert mock_duckdb.insert_batch.call_count >= 3, \
+            f"Expected at least 3 insert_batch calls, got {mock_duckdb.insert_batch.call_count}"

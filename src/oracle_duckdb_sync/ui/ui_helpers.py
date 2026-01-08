@@ -5,9 +5,19 @@ This module provides helper functions to display messages returned by
 UI-independent data layer functions.
 """
 
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Optional, Tuple
+from datetime import datetime, timedelta
 from ..adapters.streamlit_adapter import StreamlitAdapter
 from ..application.ui_presenter import MessageContext
+
+
+# Date preset constants
+class DatePresets:
+    """Constants for date range preset selections."""
+    LAST_7_DAYS = "최근 7일"
+    LAST_30_DAYS = "최근 30일"
+    LAST_90_DAYS = "최근 90일"
+    ALL = "전체"
 
 
 def display_messages(messages: List[Dict[str, str]], adapter: StreamlitAdapter) -> None:
@@ -98,14 +108,14 @@ def show_row_count(count: int, table_name: str, adapter: StreamlitAdapter) -> No
 def show_conversion_results(conversions: Dict[str, Any], adapter: StreamlitAdapter) -> None:
     """
     Display type conversion results.
-    
+
     Args:
         conversions: Dictionary of column conversions
         adapter: StreamlitAdapter instance
     """
     if not conversions:
         return
-    
+
     conversion_details = []
     for col, conversion_info in conversions.items():
         if isinstance(conversion_info, tuple):
@@ -113,7 +123,37 @@ def show_conversion_results(conversions: Dict[str, Any], adapter: StreamlitAdapt
             conversion_details.append(f"  • {col}: {old_type} → {new_type}")
         else:
             conversion_details.append(f"  • {col}: {conversion_info}")
-    
+
     with adapter.layout.create_expander("🔄 자동 타입 변환 결과"):
         import streamlit as st
         st.text("\n".join(conversion_details))
+
+
+def get_preset_date_range(preset: str) -> Optional[Tuple[datetime, datetime]]:
+    """
+    Get date range based on preset period selection.
+
+    Args:
+        preset: Preset period name (use DatePresets constants)
+
+    Returns:
+        Tuple of (start_date, end_date) as datetime objects, or None for "전체"
+    """
+    today = datetime.now()
+
+    # Map presets to number of days
+    preset_days = {
+        DatePresets.LAST_7_DAYS: 7,
+        DatePresets.LAST_30_DAYS: 30,
+        DatePresets.LAST_90_DAYS: 90,
+    }
+
+    if preset in preset_days:
+        days = preset_days[preset]
+        start_date = today - timedelta(days=days)
+        return (start_date, today)
+    elif preset == DatePresets.ALL:
+        return None
+    else:
+        # Default to None for unknown presets
+        return None
