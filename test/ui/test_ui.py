@@ -48,7 +48,7 @@ def test_121_preset_period_selector():
 
     # Test preset date range calculation
     # "최근 7일" should return date range from 7 days ago to today
-    start_date, end_date = get_preset_date_range("최근 7일")
+    start_date, end_date = get_preset_date_range("최근 7일", base_date=now)
     expected_start = today - timedelta(days=7)
     expected_end = today
 
@@ -56,7 +56,7 @@ def test_121_preset_period_selector():
     assert end_date.date() == expected_end
 
     # "최근 30일" should return date range from 30 days ago to today
-    start_date, end_date = get_preset_date_range("최근 30일")
+    start_date, end_date = get_preset_date_range("최근 30일", base_date=now)
     expected_start = today - timedelta(days=30)
     expected_end = today
 
@@ -64,7 +64,7 @@ def test_121_preset_period_selector():
     assert end_date.date() == expected_end
 
     # "최근 90일" should return date range from 90 days ago to today
-    start_date, end_date = get_preset_date_range("최근 90일")
+    start_date, end_date = get_preset_date_range("최근 90일", base_date=now)
     expected_start = today - timedelta(days=90)
     expected_end = today
 
@@ -72,6 +72,6 @@ def test_121_preset_period_selector():
     assert end_date.date() == expected_end
 
     # "전체" should return None (no filtering)
-    result = get_preset_date_range("전체")
+    result = get_preset_date_range("전체", base_date=now)
     assert result is None
 

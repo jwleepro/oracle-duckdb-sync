@@ -21,9 +21,12 @@ def test_sync_engine_max_iterations():
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
 
-        # Simulate infinite loop: always return FULL batch (batch_size items)
-        # This simulates the bug where fetch_batch keeps returning same data
-        mock_oracle.fetch_batch.return_value = [(i, f"data{i}") for i in range(1000)]
+        # Simulate infinite loop: always yield a batch
+        def infinite_generator(*args, **kwargs):
+            while True:
+                yield [(i, f"data{i}") for i in range(10)]
+
+        mock_oracle.fetch_generator.side_effect = infinite_generator
 
         config = Config(
             oracle_host="lh", oracle_port=1521, oracle_service_name="xe",
@@ -46,12 +49,12 @@ def test_sync_engine_timeout():
         mock_duckdb = mock_duckdb_cls.return_value
 
         # Simulate slow operation that exceeds timeout
-        # Return full batch to keep looping, with delay
-        def slow_fetch(*args, **kwargs):
-            time.sleep(0.2)
-            return [(i, f"data{i}") for i in range(1000)]
+        def slow_generator(*args, **kwargs):
+            while True:
+                time.sleep(0.2)
+                yield [(i, f"data{i}") for i in range(10)]
 
-        mock_oracle.fetch_batch.side_effect = slow_fetch
+        mock_oracle.fetch_generator.side_effect = slow_generator
 
         config = Config(
             oracle_host="lh", oracle_port=1521, oracle_service_name="xe",

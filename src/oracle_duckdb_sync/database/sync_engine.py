@@ -245,42 +245,43 @@ class SyncEngine:
         
         start_time = time.time()
         total_count = 0
-        
-        # Infinite loop prevention
+        batch_number = 0
         max_iterations = 10000
-        iteration_count = 0
         
-        while True:
-            iteration_count += 1
-            
+        # Use fetch_generator for thread-safe iteration
+        for data in self.oracle.fetch_generator(query, batch_size=batch_size):
+            batch_start_time = time.time()
+            batch_number += 1
+
             # Check max iterations
-            if iteration_count > max_iterations:
+            if batch_number > max_iterations:
                 raise RuntimeError(f"Exceeded maximum iterations ({max_iterations})")
-            
+
             # Check timeout
             elapsed = time.time() - start_time
             if elapsed > max_duration:
                 raise TimeoutError(f"Sync exceeded maximum duration ({max_duration}s)")
-            
-            data = self.oracle.fetch_batch(query, batch_size=batch_size)
-            if not data:
-                break
-            
+
+            self.logger.info(f"[BATCH {batch_number}] Fetched {len(data)} rows (Total so far: {total_count})")
+
             # Use UPSERT if primary_key is provided
             if primary_key:
                 # Get column names from table schema
                 schema_query = f"DESCRIBE {duckdb_table}"
                 schema_result = self.duckdb.conn.execute(schema_query).fetchall()
                 column_names = [row[0] for row in schema_result]
-                
+
                 self.duckdb.insert_batch(duckdb_table, data, column_names=column_names, primary_key=primary_key, logger=self.logger)
             else:
                 self.duckdb.insert_batch(duckdb_table, data)
-            
+
             total_count += len(data)
+
+            # Log batch timing
+            batch_elapsed = time.time() - batch_start_time
+            self.logger.info(f"[BATCH {batch_number}] Processed {len(data)} rows in {batch_elapsed:.3f}s (Total: {total_count})")
+
             self._log_progress(duckdb_table, total_count, len(data))
-            if len(data) < batch_size:
-                break
 
         # Log statistics
         elapsed_time = time.time() - start_time
@@ -416,32 +417,37 @@ class SyncEngine:
         
         # Fetch and insert in batches, respecting the row_limit
         while total_count < row_limit:
+            batch_start_time = time.time()
             batch_number += 1
-            
+
             # Check timeout
             elapsed = time.time() - start_time
             if elapsed > max_duration:
                 raise TimeoutError(f"Sync exceeded maximum duration ({max_duration}s)")
-            
+
             # Calculate how many rows to fetch in this batch
             remaining = row_limit - total_count
             current_batch_size = min(batch_size, remaining)
-            
+
             self.logger.info(f"[BATCH {batch_number}] Preparing to fetch {current_batch_size} rows (total so far: {total_count}, remaining: {remaining})")
-            
+
             # Fetch batch from cursor
             rows = self._fetch_batch_from_oracle(cursor, current_batch_size, batch_number)
-            
+
             if not rows:
                 break
-            
+
             # Convert datetime objects
             data = self._convert_datetime_values(rows)
-            
+
             # Insert batch to DuckDB
             self._insert_batch_to_duckdb(duckdb_table, data, duckdb_columns)
-            
+
             total_count += len(data)
+
+            # Log batch timing
+            batch_elapsed = time.time() - batch_start_time
+            self.logger.info(f"[BATCH {batch_number}] Processed {len(data)} rows in {batch_elapsed:.3f}s (Total: {total_count})")
             self.logger.info(f"[PROGRESS] Total rows processed: {total_count}/{row_limit} ({total_count/row_limit*100:.1f}%)")
             self._log_progress(duckdb_table, total_count, len(data))
             

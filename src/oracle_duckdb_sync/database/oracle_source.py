@@ -180,7 +180,11 @@ class OracleSource:
             return [tuple(datetime_handler(v) for v in row) for row in rows]
 
     def fetch_batch(self, query: str, batch_size: int = 1000):
-        """Fetch next batch from the query. Maintains cursor state for pagination."""
+        """Fetch next batch from the query. Maintains cursor state for pagination.
+        
+        WARNING: This method is stateful and NOT thread-safe if used on the same instance
+        with different queries. Use fetch_generator for thread-safe iteration.
+        """
         if not self.conn:
             self.connect()
 
@@ -211,6 +215,25 @@ class OracleSource:
             self.current_query = None
 
         return [tuple(datetime_handler(v) for v in row) for row in rows]
+
+    def fetch_generator(self, query: str, batch_size: int = 1000):
+        """Yield batches of rows from the query.
+        
+        This method is thread-safe as it creates a fresh cursor for each execution.
+        """
+        if not self.conn:
+            self.connect()
+            
+        cursor = self.conn.cursor()
+        try:
+            cursor.execute(query)
+            while True:
+                rows = cursor.fetchmany(batch_size)
+                if not rows:
+                    break
+                yield [tuple(datetime_handler(v) for v in row) for row in rows]
+        finally:
+            cursor.close()
 
     def build_incremental_query(self, table_name: str, column_name: str, last_value: str):
         return f"SELECT * FROM {table_name} WHERE {column_name} > '{last_value}' ORDER BY {column_name} ASC"

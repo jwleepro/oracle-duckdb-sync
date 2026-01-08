@@ -43,7 +43,7 @@ def test_130_full_sync_e2e(e2e_config):
             (2, "Record2", "2023-01-02 11:00:00"),
             (3, "Record3", "2023-01-03 12:00:00")
         ]
-        mock_oracle.fetch_batch.side_effect = [oracle_data, []]
+        mock_oracle.fetch_generator.return_value = iter([oracle_data])
         
         # Setup mock DuckDB target
         mock_duckdb = mock_duckdb_cls.return_value
@@ -59,7 +59,7 @@ def test_130_full_sync_e2e(e2e_config):
         total_rows = engine.full_sync("SOURCE_TABLE", "TARGET_TABLE", "ID")
 
         # Verify data was extracted from Oracle
-        assert mock_oracle.fetch_batch.called
+        assert mock_oracle.fetch_generator.called
         # Called once (returns 3 rows which is less than default batch_size of 10000, so breaks)
 
         # Verify data was loaded into DuckDB
@@ -418,7 +418,7 @@ def test_132_duplicate_sync_prevention_with_upsert():
             ]
             
             # Mock Oracle to return first sync data
-            mock_oracle.fetch_batch.side_effect = [first_sync_data, []]
+            mock_oracle.fetch_generator.return_value = iter([first_sync_data])
             mock_oracle.build_incremental_query.return_value = "SELECT * FROM test_table WHERE updated_at > '2026-01-03 00:00:00'"
             
             # Perform first incremental sync with PRIMARY KEY for UPSERT
@@ -451,7 +451,7 @@ def test_132_duplicate_sync_prevention_with_upsert():
             ]
             
             # Reset mock for second sync
-            mock_oracle.fetch_batch.side_effect = [second_sync_data, []]
+            mock_oracle.fetch_generator.return_value = iter([second_sync_data])
             
             # Perform second incremental sync (same day) with PRIMARY KEY
             total_rows_2 = engine.incremental_sync(

@@ -82,7 +82,7 @@ def test_133_incremental_sync_performance_10k_rows():
         # Configure Oracle to return all data in one batch (simulates efficient query)
         # Real Oracle would return in batches, but for performance test we want to measure
         # the sync engine's ability to handle 10k rows regardless of batch strategy
-        mock_oracle.fetch_batch.side_effect = [test_data, []]
+        mock_oracle.fetch_generator.return_value = iter([test_data])
         
         # Build incremental query mock
         mock_oracle.build_incremental_query.return_value = "SELECT * FROM test_table WHERE timestamp > '2024-01-01'"

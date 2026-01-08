@@ -51,10 +51,9 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
         
         # Test 2: Simulate sync that fails
         # Set up mock - will retry twice, so need to provide data for both attempts
-        mock_oracle.fetch_batch.side_effect = [
-            [(1, "Data1"), (2, "Data2")],  # Attempt 1 - Batch 1
-            [(1, "Data1"), (2, "Data2")],  # Attempt 2 - Batch 1 (retry)
-        ]
+        # Each attempt calls fetch_generator once, which yields batches
+        batch_data = [(1, "Data1"), (2, "Data2")]
+        mock_oracle.fetch_generator.side_effect = [iter([batch_data]), iter([batch_data])]
         
         # Make insert_batch always fail
         mock_duckdb.insert_batch.side_effect = Exception("Network error during sync")
@@ -85,11 +84,12 @@ def test_142_state_rollback_on_failure_and_restart(tmp_path, mock_config):
         
         # Test 5: Restart sync from checkpoint
         # Mock successful sync this time - need to simulate full batches
-        mock_oracle.fetch_batch.side_effect = [
-            [(i, f"Data{i}") for i in range(1, 10001)],  # Full batch of 10000
-            [(10001, "Data10001"), (10002, "Data10002")],  # Partial batch of 2
-            []  # End of data
-        ]
+        batch1 = [(i, f"Data{i}") for i in range(1, 10001)]
+        batch2 = [(10001, "Data10001"), (10002, "Data10002")]
+        
+        # Reset side_effect so return_value is used
+        mock_oracle.fetch_generator.side_effect = None
+        mock_oracle.fetch_generator.return_value = iter([batch1, batch2])
         
         # Reset mock and make insert_batch succeed
         mock_duckdb.insert_batch.reset_mock()

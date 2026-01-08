@@ -129,17 +129,21 @@ def show_conversion_results(conversions: Dict[str, Any], adapter: StreamlitAdapt
         st.text("\n".join(conversion_details))
 
 
-def get_preset_date_range(preset: str) -> Optional[Tuple[datetime, datetime]]:
+def get_preset_date_range(preset: str, base_date: datetime = None) -> Optional[Tuple[datetime, datetime]]:
     """
     Get date range based on preset period selection.
 
     Args:
         preset: Preset period name (use DatePresets constants)
+        base_date: Optional reference date (defaults to datetime.now())
 
     Returns:
         Tuple of (start_date, end_date) as datetime objects, or None for "전체"
     """
-    today = datetime.now()
+    if base_date:
+        today = base_date
+    else:
+        today = datetime.now()
 
     # Map presets to number of days
     preset_days = {

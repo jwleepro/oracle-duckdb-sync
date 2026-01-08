@@ -40,7 +40,8 @@ def test_101_stats_logging(tmp_path):
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
          patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
         mock_oracle = mock_oracle_cls.return_value
-        mock_oracle.fetch_batch.side_effect = [[(i,) for i in range(100)], []]
+        # Mock fetch_generator to yield one batch of 100 rows
+        mock_oracle.fetch_generator.return_value = iter([[(i,) for i in range(100)]])
 
         engine = SyncEngine(mock_config)
         engine.logger = setup_logger("sync_stats", str(log_file))
@@ -95,13 +96,12 @@ def test_103_batch_index_statistics(tmp_path):
         mock_oracle = mock_oracle_cls.return_value
         mock_duckdb = mock_duckdb_cls.return_value
 
-        # Simulate 3 batches of data (all full batches to ensure continuation)
-        mock_oracle.fetch_batch.side_effect = [
-            [(i, f"Data{i}") for i in range(50)],   # Batch 1: 50 rows (full)
-            [(i, f"Data{i}") for i in range(50)],   # Batch 2: 50 rows (full)
-            [(i, f"Data{i}") for i in range(30)],   # Batch 3: 30 rows (partial - stops here)
-            []                                       # End of data
-        ]
+        # Simulate 3 batches of data
+        mock_oracle.fetch_generator.return_value = iter([
+            [(i, f"Data{i}") for i in range(50)],   # Batch 1: 50 rows
+            [(i, f"Data{i}") for i in range(50)],   # Batch 2: 50 rows
+            [(i, f"Data{i}") for i in range(30)]    # Batch 3: 30 rows
+        ])
 
         engine = SyncEngine(mock_config)
         engine.logger = setup_logger("batch_stats", str(log_file))
