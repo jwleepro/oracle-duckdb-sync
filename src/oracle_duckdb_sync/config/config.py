@@ -44,6 +44,9 @@ class Config:
     sync_retry_attempts: int = 3
     sync_retry_delay_seconds: float = 0.1
 
+    # Infinite loop prevention (safety limit: ~100M rows with default batch_size=10000)
+    sync_max_iterations: int = 10000
+
     # State file paths
     state_directory: str = "./data"
     sync_state_file: str = "sync_state.json"
@@ -152,6 +155,9 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         # Retry settings
         sync_retry_attempts=int(os.getenv("SYNC_RETRY_ATTEMPTS", "3")),
         sync_retry_delay_seconds=float(os.getenv("SYNC_RETRY_DELAY_SECONDS", "0.1")),
+        
+        # Infinite loop prevention
+        sync_max_iterations=int(os.getenv("SYNC_MAX_ITERATIONS", "10000")),
 
         # State file paths
         state_directory=os.getenv("STATE_DIRECTORY", "./data"),

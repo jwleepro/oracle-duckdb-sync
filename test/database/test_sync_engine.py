@@ -287,3 +287,78 @@ def test_073_parallel_batch_processing(mock_config):
         # Let's change FetchSimulator to always yield one batch.
         
         assert mock_duckdb.insert_batch.call_count >= 2 # Adjusted expectation or fix simulator to be deterministic
+
+
+def test_max_iterations_configurable(mock_config):
+    """API-level test: max_iterations should be configurable via Config
+    
+    This test verifies that the hardcoded max_iterations value (10000) 
+    can be configured through the Config object, allowing users to adjust
+    the safety limit for infinite loop prevention based on their needs.
+    
+    Defect: sync_engine.py line 249 has hardcoded max_iterations = 10000
+    Expected: Should use self.config.sync_max_iterations instead
+    """
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+        mock_oracle = mock_oracle_cls.return_value
+        mock_duckdb = mock_duckdb_cls.return_value
+        
+        # Set custom max_iterations in config
+        custom_config = Config(
+            oracle_host="lh", oracle_port=1521, oracle_service_name="xe",
+            oracle_user="u", oracle_password="p",
+            duckdb_path=":memory:",
+            sync_max_iterations=5  # Custom value instead of hardcoded 10000
+        )
+        
+        # Create a generator that yields more than 5 batches to trigger the limit
+        def infinite_generator():
+            for i in range(10):  # Try to yield 10 batches
+                yield [(i, f"Data{i}")]
+        
+        mock_oracle.fetch_generator.return_value = infinite_generator()
+        
+        engine = SyncEngine(custom_config)
+        
+        # Should raise RuntimeError when exceeding configured max_iterations (5)
+        with pytest.raises(RuntimeError, match="Exceeded maximum iterations"):
+            engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)
+
+
+def test_max_iterations_default_value(mock_config):
+    """Unit test: Verify max_iterations has sensible default value
+    
+    This test ensures that when sync_max_iterations is not explicitly set
+    in Config, a reasonable default value is used (10000) that allows
+    processing ~100M rows with default batch_size=10000.
+    """
+    with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+        mock_oracle = mock_oracle_cls.return_value
+        mock_duckdb = mock_duckdb_cls.return_value
+        
+        # Config without explicit sync_max_iterations should have default
+        engine = SyncEngine(mock_config)
+        
+        # Create generator yielding exactly 10000 batches (should succeed)
+        def large_generator():
+            for i in range(10000):
+                yield [(i, f"Data{i}")]
+        
+        mock_oracle.fetch_generator.return_value = large_generator()
+        
+        # Should NOT raise error with 10000 batches
+        total = engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)
+        assert total == 10000
+        
+        # Create generator yielding 10001 batches (should fail)
+        def too_large_generator():
+            for i in range(10001):
+                yield [(i, f"Data{i}")]
+        
+        mock_oracle.fetch_generator.return_value = too_large_generator()
+        
+        # Should raise error exceeding default max_iterations
+        with pytest.raises(RuntimeError, match="Exceeded maximum iterations"):
+            engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)

@@ -246,7 +246,8 @@ class SyncEngine:
         start_time = time.time()
         total_count = 0
         batch_number = 0
-        max_iterations = 10000
+        # Prevent infinite loops (configurable safety limit)
+        max_iterations = self.config.sync_max_iterations
         
         # Use fetch_generator for thread-safe iteration
         for data in self.oracle.fetch_generator(query, batch_size=batch_size):
