@@ -119,11 +119,14 @@ def main():
         help="테스트로 가져올 최대 행 수 (기본: 10만)"
     )
     
-    # Check if sync is running and update progress
+    # Always check for progress updates (including completion/error messages)
+    # This ensures we detect when a background sync completes
+    check_progress()
+    
+    # Auto-refresh UI during sync to show real-time progress
     if st.session_state.sync_status == 'running':
-        check_progress()
-        # Use st.empty() placeholder for progress updates without blocking
-        # Note: Removed automatic rerun to prevent UI lock
+        time.sleep(SYNC_PROGRESS_REFRESH_INTERVAL)
+        st.rerun()
     
     # Render sync status UI (running, completed, or error)
     render_sync_status_ui()
