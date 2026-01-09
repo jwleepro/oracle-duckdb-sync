@@ -81,6 +81,10 @@ env/
 *.sqlite
 *.sqlite3
 
+
+# DuckDB State files (contains schema/table names)
+data/sync_state.json
+
 # Logs
 *.log
 
