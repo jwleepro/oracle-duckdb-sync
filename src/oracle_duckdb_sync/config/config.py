@@ -54,6 +54,13 @@ class Config:
     sync_progress_file: str = "sync_progress.json"
 
     @property
+    def oracle_full_table_name(self) -> str:
+        """스키마와 테이블명을 합친 전체 Oracle 테이블명 반환"""
+        if self.sync_oracle_schema:
+            return f"{self.sync_oracle_schema}.{self.sync_oracle_table}"
+        return self.sync_oracle_table
+
+    @property
     def sync_state_path(self) -> str:
         return os.path.join(self.state_directory, self.sync_state_file)
 
@@ -104,7 +111,7 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         raise ValueError(
             "DUCKDB_TIME_COLUMN must be explicitly configured in .env file. "
             "This specifies the time column name in DuckDB for queries and aggregations. "
-            "Example: DUCKDB_TIME_COLUMN=TRAN_TIME"
+            "Example: DUCKDB_TIME_COLUMN=CREATE_TIME"
         )
 
     # Parse Oracle Client directories

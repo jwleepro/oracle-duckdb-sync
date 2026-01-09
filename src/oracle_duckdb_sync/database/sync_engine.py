@@ -178,35 +178,58 @@ class SyncEngine:
         return self._execute_limited_sync(oracle_table_name, duckdb_table, row_limit, duckdb_columns, batch_size=self.config.sync_batch_size)
 
     def incremental_sync(self, oracle_table_name: str, duckdb_table: str, column: str, last_value: str, primary_key: str = None, retries: int = None):
-        """Perform incremental synchronization from Oracle to DuckDB with UPSERT support
-        
+        """Perform incremental synchronization from Oracle to DuckDB
+
+        Incremental sync uses INSERT only (no UPSERT) because:
+        - New data from Oracle should not have duplicates
+        - State is only updated on successful completion
+        - Failed syncs can be retried without duplication
+
         Args:
             oracle_table_name: Source Oracle table name
             duckdb_table: Target DuckDB table name
             column: Timestamp column for incremental detection
             last_value: Last synchronized timestamp value
-            primary_key: Primary key column for UPSERT (optional, recommended for deduplication)
+            primary_key: Not used in incremental sync (always None for INSERT-only)
             retries: Number of retry attempts on failure
-            
+
         Returns:
             int: Total number of rows synchronized
         """
         # Ensure Oracle connection is established
         if not self.oracle.conn:
             self.oracle.connect()
-        
+
         if retries is None:
             retries = self.config.sync_retry_attempts
         query = self.oracle.build_incremental_query(oracle_table_name, column, last_value)
         last_exception = None
         for attempt in range(retries):
             try:
-                return self._execute_sync(query, duckdb_table, primary_key=primary_key)
+                # Use INSERT only (primary_key=None) for incremental sync
+                total_rows = self._execute_sync(query, duckdb_table, primary_key=None)
+
+                # Only save state if sync was successful
+                if total_rows >= 0:
+                    # Get the latest timestamp from DuckDB after successful insert
+                    max_time_query = f"SELECT MAX({column}) FROM {duckdb_table}"
+                    result = self.duckdb.conn.execute(max_time_query).fetchone()
+
+                    if result and result[0]:
+                        new_last_value = str(result[0])
+                        self.save_state(oracle_table_name, new_last_value)
+                        self.logger.info(f"Incremental sync state saved: {oracle_table_name} -> {new_last_value}")
+
+                return total_rows
             except Exception as e:
                 last_exception = e
                 if attempt < retries - 1:
+                    self.logger.warning(f"Incremental sync attempt {attempt + 1} failed, retrying...")
                     time.sleep(self.config.sync_retry_delay_seconds)
                     continue
+
+        # If all retries failed, do NOT save state
+        self.logger.error(f"Incremental sync failed after {retries} attempts. State NOT updated.")
         raise last_exception
 
     def sync_in_batches(self, oracle_table_name: str, duckdb_table: str, batch_size: int = None, max_duration: int = None):

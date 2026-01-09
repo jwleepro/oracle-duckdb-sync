@@ -53,6 +53,7 @@
     "context7"
   ],
   "env": {
-    "MAX_THINKING_TOKENS": "0"
-  }
+    "MAX_THINKING_TOKENS": "2000"
+  },
+  "outputStyle": "default"
 }

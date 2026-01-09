@@ -209,8 +209,8 @@ cp .env.example .env
 **동기화 대상 테이블 설정:**
 - `SYNC_ORACLE_TABLE`: 동기화할 Oracle 원본 테이블명 (필수)
 - `SYNC_DUCKDB_TABLE`: DuckDB 대상 테이블명 (선택, 비워두면 Oracle 테이블명을 소문자로 사용)
-- `SYNC_PRIMARY_KEY`: Oracle 원본 테이블의 Primary Key 컬럼명. Primary Key가 Composite Key인 경우 콤마로 표현. ex) FACTORY LOT_ID
-- `SYNC_TIME_COLUMN`: 증분 동기화용 Oracle 원본 테이블의 시간 컬럼명. Composite NON UNIQUE INDEX인 경우 콤마로 표현. ex) FACTORY, TRAN_TIME
+- `SYNC_PRIMARY_KEY`: Oracle 원본 테이블의 Primary Key 컬럼명. Primary Key가 Composite Key인 경우 콤마로 표현
+- `SYNC_TIME_COLUMN`: 증분 동기화용 Oracle 원본 테이블의 시간 컬럼명. Composite NON UNIQUE INDEX인 경우 콤마로 표현
 - `DUCKDB_TIME_COLUMN`: DuckDB 쿼리(집계, 시각화)에 사용할 시간 컬럼명 (설정하지 않으면 SYNC_TIME_COLUMN의 첫 번째 컬럼 사용)
   - **권장**: Oracle 스키마 정의와 DuckDB 쿼리 레이어를 분리하기 위해 명시적으로 설정
 

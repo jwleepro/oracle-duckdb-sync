@@ -103,7 +103,7 @@ def main():
     st.sidebar.info(f"📋 설정된 테이블: {config.sync_oracle_table}")
     
     # Use .env configuration
-    table_name = config.sync_oracle_table
+    table_name = config.oracle_full_table_name
     primary_key = config.sync_primary_key
     time_column = config.duckdb_time_column  # Use DuckDB-specific time column
     
