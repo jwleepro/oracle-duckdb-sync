@@ -31,8 +31,9 @@
 - 📊 테스트 커버리지: 낮음 → **높음** (25개 테스트)
 
 자세한 내용은 다음 문서 참조:
-- `docs/ui_separation_architecture.md`: 전체 아키텍처 가이드
-- `docs/implementation_summary.md`: 구현 완료 요약
+- [docs/archive/ui_separation_architecture.md](docs/archive/ui_separation_architecture.md): 전체 아키텍처 가이드
+- [docs/archive/IMPLEMENTATION_PHASE1_COMPLETE.md](docs/archive/IMPLEMENTATION_PHASE1_COMPLETE.md): 구현 완료 1 요약
+- [docs/archive/IMPLEMENTATION_PHASE2_COMPLETE.md](docs/archive/IMPLEMENTATION_PHASE2_COMPLETE.md): 구현 완료 2 요약
 
 
 ### 2-1. 아키텍처 레이어
