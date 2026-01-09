@@ -5,13 +5,15 @@ This module provides functions for rendering interactive data visualizations
 using Plotly and Streamlit.
 """
 
-import streamlit as st
+from typing import Optional
+
+import numpy as np
 import pandas as pd
 import plotly.express as px
-import numpy as np
-from typing import List, Optional
-from oracle_duckdb_sync.log.logger import setup_logger
+import streamlit as st
+
 from oracle_duckdb_sync.data.lttb import lttb_downsample_multi_y
+from oracle_duckdb_sync.log.logger import setup_logger
 
 # Set up logger
 viz_logger = setup_logger('Visualization')
@@ -54,23 +56,23 @@ def _prepare_aggregated_data_for_viz(df: pd.DataFrame) -> pd.DataFrame:
 def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) -> tuple:
     """
     Calculate optimal Y-axis range with padding for better visualization.
-    
+
     Args:
         y_values: Array of Y-axis values
         padding_percent: Percentage of padding to add (default: 5%)
-    
+
     Returns:
         Tuple of (y_min, y_max) for Y-axis range, or (None, None) if no valid data
     """
     # Remove NaN values
     y_values = y_values[~np.isnan(y_values)]
-    
+
     if len(y_values) == 0:
         return None, None
-    
+
     y_min = np.min(y_values)
     y_max = np.max(y_values)
-    
+
     # Add padding for better visualization
     y_range = y_max - y_min
     if y_range > 0:
@@ -81,17 +83,17 @@ def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) 
         # If all values are the same, show a small range around the value
         y_axis_min = y_min - abs(y_min) * 0.01 if y_min != 0 else -0.01
         y_axis_max = y_max + abs(y_max) * 0.01 if y_max != 0 else 0.01
-    
+
     return y_axis_min, y_axis_max
 
 
 def _detect_datetime_columns(df: pd.DataFrame) -> list:
     """
     Detect datetime columns in DataFrame.
-    
+
     Args:
         df: DataFrame to analyze
-        
+
     Returns:
         List of datetime column names
     """
@@ -101,10 +103,10 @@ def _detect_datetime_columns(df: pd.DataFrame) -> list:
 def _detect_numeric_columns(df: pd.DataFrame) -> list:
     """
     Detect numeric columns in DataFrame.
-    
+
     Args:
         df: DataFrame to analyze
-        
+
     Returns:
         List of numeric column names
     """
@@ -114,20 +116,20 @@ def _detect_numeric_columns(df: pd.DataFrame) -> list:
 def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, max_value: float) -> pd.DataFrame:
     """
     Filter DataFrame to keep only rows where column value is within min and max range (inclusive).
-    
+
     This function is useful for removing outliers and measurement errors from data.
     For example, if a column typically contains values between 0.12 and 0.13,
     but has outliers like 5.0 or 7.0, this function can filter those out.
-    
+
     Args:
         df: DataFrame to filter
         column: Column name to filter by
         min_value: Minimum allowed value (inclusive)
         max_value: Maximum allowed value (inclusive)
-        
+
     Returns:
         Filtered DataFrame with only rows where column values are within range
-        
+
     Example:
         >>> df = pd.DataFrame({'measurement': [0.12, 0.13, 0.5, 5.0, 0.125]})
         >>> filtered = filter_dataframe_by_range(df, 'measurement', 0.12, 0.13)
@@ -136,17 +138,17 @@ def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, m
     if column not in df.columns:
         viz_logger.warning(f"Column '{column}' not found in DataFrame. Returning original DataFrame.")
         return df
-    
+
     # Filter rows where column value is within [min_value, max_value]
     filtered_df = df[(df[column] >= min_value) & (df[column] <= max_value)].copy()
-    
+
     original_count = len(df)
     filtered_count = len(filtered_df)
     excluded_count = original_count - filtered_count
-    
+
     if excluded_count > 0:
         viz_logger.info(f"Filtered column '{column}': excluded {excluded_count} rows (kept {filtered_count}/{original_count})")
-    
+
     return filtered_df
 
 
@@ -154,7 +156,7 @@ def render_data_visualization(
     df: pd.DataFrame,
     table_name: str,
     query_mode: str = 'detailed',
-    base_numeric_cols: Optional[List[str]] = None
+    base_numeric_cols: Optional[list[str]] = None
 ):
     """
     Render interactive data visualization with Plotly charts.
@@ -180,16 +182,16 @@ def render_data_visualization(
     # In aggregated mode, limit selectable numeric columns to original base columns
     if query_mode == 'aggregated' and base_numeric_cols is not None:
         numeric_cols = [col for col in base_numeric_cols if col in numeric_cols]
-    
+
     if not numeric_cols and not datetime_cols:
         st.info("시각화할 숫자형 또는 날짜형 컬럼이 없습니다. VARCHAR2 컬럼의 내용이 숫자나 날짜 형식이 아닐 수 있습니다.")
         return
-    
+
     # Column selection UI
     st.markdown("**차트 설정**")
-    
+
     col1, col2 = st.columns(2)
-    
+
     with col1:
         # X-axis selection (datetime columns)
         if datetime_cols:
@@ -202,13 +204,13 @@ def render_data_visualization(
         else:
             x_col = None
             st.info("📊 날짜/시간 컬럼이 없습니다. 인덱스를 X축으로 사용합니다.")
-    
+
     with col2:
         # Y-axis selection (numeric columns)
         if numeric_cols:
             # Filter out the selected x_col from numeric options
             available_y_cols = [col for col in numeric_cols if col != x_col]
-            
+
             if available_y_cols:
                 y_cols = st.multiselect(
                     "Y축 (숫자 컬럼)",
@@ -222,7 +224,7 @@ def render_data_visualization(
         else:
             y_cols = []
             st.warning("숫자형 컬럼이 없습니다.")
-    
+
     # Create chart if y columns are selected
     if not y_cols:
         st.info("💡 차트에 표시할 Y축 컬럼을 선택하세요.")
@@ -532,11 +534,11 @@ def _create_and_display_chart(
             if y_axis_min is not None and y_axis_max is not None:
                 # Use update_layout for more reliable Y-axis range setting
                 fig.update_layout(
-                    yaxis=dict(
-                        range=[y_axis_min, y_axis_max],
-                        autorange=False,  # Disable autorange
-                        rangemode='normal'  # Don't force zero
-                    )
+                    yaxis={
+                        'range': [y_axis_min, y_axis_max],
+                        'autorange': False,  # Disable autorange
+                        'rangemode': 'normal'  # Don't force zero
+                    }
                 )
                 viz_logger.info(f"Y-axis range set to [{y_axis_min:.6f}, {y_axis_max:.6f}]")
 

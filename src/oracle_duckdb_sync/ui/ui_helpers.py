@@ -5,8 +5,9 @@ This module provides helper functions to display messages returned by
 UI-independent data layer functions.
 """
 
-from typing import List, Dict, Any, Optional, Tuple
 from datetime import datetime, timedelta
+from typing import Any, Optional
+
 from ..adapters.streamlit_adapter import StreamlitAdapter
 from ..application.ui_presenter import MessageContext
 
@@ -20,10 +21,10 @@ class DatePresets:
     ALL = "전체"
 
 
-def display_messages(messages: List[Dict[str, str]], adapter: StreamlitAdapter) -> None:
+def display_messages(messages: list[dict[str, str]], adapter: StreamlitAdapter) -> None:
     """
     Display a list of messages using the UI adapter.
-    
+
     Args:
         messages: List of message dictionaries with 'level' and 'message' keys
         adapter: StreamlitAdapter instance
@@ -31,7 +32,7 @@ def display_messages(messages: List[Dict[str, str]], adapter: StreamlitAdapter) 
     for msg in messages:
         level = msg.get('level', 'info')
         message = msg.get('message', '')
-        
+
         if level == 'spinner':
             # Spinner messages are handled differently
             continue
@@ -55,10 +56,10 @@ def display_messages(messages: List[Dict[str, str]], adapter: StreamlitAdapter) 
             adapter.presenter.show_message(context)
 
 
-def display_query_result_messages(result: Dict[str, Any], adapter: StreamlitAdapter) -> None:
+def display_query_result_messages(result: dict[str, Any], adapter: StreamlitAdapter) -> None:
     """
     Display messages from a query result dictionary.
-    
+
     Args:
         result: Query result dictionary containing 'messages' key
         adapter: StreamlitAdapter instance
@@ -67,10 +68,10 @@ def display_query_result_messages(result: Dict[str, Any], adapter: StreamlitAdap
         display_messages(result['messages'], adapter)
 
 
-def show_table_list(tables: List[str], adapter: StreamlitAdapter) -> None:
+def show_table_list(tables: list[str], adapter: StreamlitAdapter) -> None:
     """
     Display available tables list.
-    
+
     Args:
         tables: List of table names
         adapter: StreamlitAdapter instance
@@ -85,14 +86,14 @@ def show_table_list(tables: List[str], adapter: StreamlitAdapter) -> None:
             level='warning',
             message="⚠️ DuckDB에 테이블이 없습니다. 먼저 '지금 동기화 실행'을 클릭하세요."
         )
-    
+
     adapter.presenter.show_message(context)
 
 
 def show_row_count(count: int, table_name: str, adapter: StreamlitAdapter) -> None:
     """
     Display table row count.
-    
+
     Args:
         count: Number of rows
         table_name: Table name
@@ -105,7 +106,7 @@ def show_row_count(count: int, table_name: str, adapter: StreamlitAdapter) -> No
     adapter.presenter.show_message(context)
 
 
-def show_conversion_results(conversions: Dict[str, Any], adapter: StreamlitAdapter) -> None:
+def show_conversion_results(conversions: dict[str, Any], adapter: StreamlitAdapter) -> None:
     """
     Display type conversion results.
 
@@ -129,7 +130,7 @@ def show_conversion_results(conversions: Dict[str, Any], adapter: StreamlitAdapt
         st.text("\n".join(conversion_details))
 
 
-def get_preset_date_range(preset: str, base_date: datetime = None) -> Optional[Tuple[datetime, datetime]]:
+def get_preset_date_range(preset: str, base_date: datetime = None) -> Optional[tuple[datetime, datetime]]:
     """
     Get date range based on preset period selection.
 

@@ -12,9 +12,11 @@ The algorithm preserves:
 Reference: https://skemman.is/bitstream/1946/15343/3/SS_MSthesis.pdf
 """
 
+from typing import Optional, Union
+
 import numpy as np
 import pandas as pd
-from typing import Union, Optional
+
 from oracle_duckdb_sync.log.logger import setup_logger
 
 logger = setup_logger('LTTB')

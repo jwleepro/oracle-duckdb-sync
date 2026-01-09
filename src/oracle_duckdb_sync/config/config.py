@@ -1,7 +1,8 @@
 import os
 from dataclasses import dataclass
-from typing import List
+
 from dotenv import load_dotenv
+
 
 @dataclass
 class Config:
@@ -13,17 +14,17 @@ class Config:
 
     duckdb_path: str
     duckdb_database: str = "main"
-    
+
     # Oracle Client settings
-    oracle_client_directories: List[str] = None
-    
+    oracle_client_directories: list[str] = None
+
     # Sync target table configuration
     sync_oracle_schema: str = ""
     sync_oracle_table: str = ""
     sync_duckdb_table: str = ""
     sync_primary_key: str = "ID"
     sync_time_column: str = "TIMESTAMP_COL"
-    
+
     # DuckDB specific time column (separates Oracle schema concerns from DuckDB queries)
     duckdb_time_column: str = "TIMESTAMP_COL"
 
@@ -92,7 +93,7 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         oracle_port = int(os.getenv("ORACLE_PORT", "1521"))
     except ValueError as e:
         raise ValueError(f"ORACLE_PORT must be a valid integer: {os.getenv('ORACLE_PORT')}") from e
-    
+
     # Validate port range (1-65535)
     if not (1 <= oracle_port <= 65535):
         raise ValueError(f"ORACLE_PORT must be between 1 and 65535, got: {oracle_port}")
@@ -100,11 +101,11 @@ def load_config(load_dotenv_file: bool = True) -> Config:
     # Get sync table configuration
     sync_oracle_table = os.getenv("SYNC_ORACLE_TABLE", "")
     sync_duckdb_table = os.getenv("SYNC_DUCKDB_TABLE", "")
-    
+
     # If duckdb table not specified, use oracle table name in lowercase without schema
     if not sync_duckdb_table and sync_oracle_table:
         sync_duckdb_table = sync_oracle_table.lower()
-    
+
     # Get DuckDB time column - REQUIRED configuration
     duckdb_time_column = os.getenv("DUCKDB_TIME_COLUMN")
     if not duckdb_time_column:
@@ -136,9 +137,9 @@ def load_config(load_dotenv_file: bool = True) -> Config:
 
         duckdb_path=os.getenv("DUCKDB_PATH"),
         duckdb_database=os.getenv("DUCKDB_DATABASE", "main"),
-        
+
         oracle_client_directories=oracle_client_directories,
-        
+
         sync_oracle_schema=os.getenv("SYNC_ORACLE_SCHEMA", ""),
         sync_oracle_table=sync_oracle_table,
         sync_duckdb_table=sync_duckdb_table,
@@ -162,7 +163,7 @@ def load_config(load_dotenv_file: bool = True) -> Config:
         # Retry settings
         sync_retry_attempts=int(os.getenv("SYNC_RETRY_ATTEMPTS", "3")),
         sync_retry_delay_seconds=float(os.getenv("SYNC_RETRY_DELAY_SECONDS", "0.1")),
-        
+
         # Infinite loop prevention
         sync_max_iterations=int(os.getenv("SYNC_MAX_ITERATIONS", "10000")),
 

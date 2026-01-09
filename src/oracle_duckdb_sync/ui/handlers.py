@@ -6,13 +6,15 @@ app.py의 복잡도를 줄이고 코드 재사용성을 높이기 위해 분리�
 """
 
 import os
-import streamlit as st
 import traceback
-from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
-from oracle_duckdb_sync.state.sync_state import SyncLock
-from oracle_duckdb_sync.log.logger import setup_logger
+
+import streamlit as st
+
 from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
 from oracle_duckdb_sync.application.ui_presenter import MessageContext
+from oracle_duckdb_sync.log.logger import setup_logger
+from oracle_duckdb_sync.scheduler.sync_worker import SyncWorker
+from oracle_duckdb_sync.state.sync_state import SyncLock
 
 # Set up logger
 handler_logger = setup_logger('UIHandlers')
@@ -81,7 +83,7 @@ def _acquire_sync_lock_with_ui(sync_lock: SyncLock):
 def _start_sync_worker(config, sync_params: dict, sync_lock: SyncLock):
     """
     동기화 워커 생성 및 시작
-    
+
     Args:
         config: 애플리케이션 설정 객체
         sync_params: 동기화 파라미터 딕셔너리
@@ -89,19 +91,19 @@ def _start_sync_worker(config, sync_params: dict, sync_lock: SyncLock):
     """
     # Create and start worker
     worker = SyncWorker(config, sync_params, st.session_state.progress_queue)
-    
+
     # Set expected_rows for test sync (for ETA calculation)
     if sync_params.get('sync_type') == 'test' and 'row_limit' in sync_params:
         worker.expected_rows = sync_params['row_limit']
-    
+
     worker.start()
-    
+
     # Update session state
     st.session_state.sync_worker = worker
     st.session_state.sync_status = 'running'
     st.session_state.sync_progress = {}
     st.session_state.sync_lock = sync_lock
-    
+
     handler_logger.info(f"{sync_params.get('sync_type', 'unknown')} sync worker started successfully")
     st.rerun()
 
@@ -109,7 +111,7 @@ def _start_sync_worker(config, sync_params: dict, sync_lock: SyncLock):
 def _handle_sync_error(sync_lock: SyncLock, exception: Exception):
     """
     동기화 시작 실패 시 에러 처리
-    
+
     Args:
         sync_lock: 해제할 동기화 락 객체
         exception: 발생한 예외
@@ -129,34 +131,34 @@ def _handle_sync_error(sync_lock: SyncLock, exception: Exception):
 def handle_test_sync(config, test_row_limit: int, table_name: str):
     """
     테스트 동기화 버튼 클릭 이벤트 처리
-    
+
     Args:
         config: 애플리케이션 설정 객체
         test_row_limit: 테스트로 가져올 최대 행 수
         table_name: Oracle 테이블명
     """
     handler_logger.info(f"Test sync initiated for table: {table_name}, limit: {test_row_limit}")
-    
+
     # Validate table name
     if not _validate_table_name(table_name):
         return
-    
+
     # Acquire sync lock with UI feedback
     sync_lock = SyncLock()
     acquired_lock = _acquire_sync_lock_with_ui(sync_lock)
     if not acquired_lock:
         return
-    
+
     try:
         # Prepare sync parameters
         sync_params = {
             'sync_type': 'test',
             'row_limit': test_row_limit
         }
-        
+
         # Start sync worker
         _start_sync_worker(config, sync_params, sync_lock)
-        
+
     except Exception as e:
         _handle_sync_error(sync_lock, e)
 
@@ -164,7 +166,7 @@ def handle_test_sync(config, test_row_limit: int, table_name: str):
 def handle_full_sync(config, table_name: str, primary_key: str, time_column: str, duckdb):
     """
     전체 동기화 버튼 클릭 이벤트 처리
-    
+
     Args:
         config: 애플리케이션 설정 객체
         table_name: Oracle 테이블명
@@ -173,17 +175,17 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
         duckdb: DuckDB 연결 객체
     """
     handler_logger.info(f"Full sync initiated for table: {table_name}")
-    
+
     # Validate table name
     if not _validate_table_name(table_name):
         return
-    
+
     # Acquire sync lock with UI feedback
     sync_lock = SyncLock()
     acquired_lock = _acquire_sync_lock_with_ui(sync_lock)
     if not acquired_lock:
         return
-    
+
     try:
         # Use duckdb table name from config or convert to lowercase
         if config.sync_duckdb_table:
@@ -191,7 +193,7 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
         else:
             table_parts = table_name.split('.')
             duckdb_table = table_parts[-1].lower()
-        
+
         # Check if table exists in DuckDB to determine sync type
         if not duckdb.table_exists(duckdb_table):
             # First time sync - perform full sync
@@ -206,12 +208,12 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
             # Incremental sync
             from oracle_duckdb_sync.database.sync_engine import SyncEngine
             sync_engine = SyncEngine(config)
-            
+
             # Load last sync time
             last_sync_time = sync_engine.load_state(table_name)
             if not last_sync_time:
                 last_sync_time = config.default_sync_start_time
-            
+
             # time_column is already parsed by config.duckdb_time_column
             sync_params = {
                 'sync_type': 'incremental',
@@ -222,10 +224,10 @@ def handle_full_sync(config, table_name: str, primary_key: str, time_column: str
                 'primary_key': primary_key  # Add primary_key for UPSERT
             }
             handler_logger.info(f"Performing incremental sync from: {last_sync_time}")
-        
+
         # Start sync worker
         _start_sync_worker(config, sync_params, sync_lock)
-        
+
     except Exception as e:
         _handle_sync_error(sync_lock, e)
 
@@ -259,29 +261,29 @@ def render_running_status():
     """
     st.sidebar.markdown("---")
     st.sidebar.subheader("🔄 동기화 진행 중")
-    
+
     if st.session_state.sync_progress:
         progress = st.session_state.sync_progress
-        
+
         # Progress bar (if percentage available)
         if progress.get('percentage', 0) > 0:
             st.sidebar.progress(min(progress['percentage'], 1.0))
-        
+
         # Statistics
         col1, col2 = st.sidebar.columns(2)
         col1.metric("처리된 행", f"{progress.get('total_rows', 0):,}")
         col2.metric("처리 속도", f"{progress.get('rows_per_second', 0):.0f} rows/s")
-        
+
         # Elapsed time
         elapsed = progress.get('elapsed_time', 0)
         st.sidebar.text(f"⏱️ 경과 시간: {elapsed:.0f}초")
-        
+
         # ETA
         if progress.get('eta'):
             st.sidebar.text(f"⏰ 예상 완료: {progress['eta']}")
     else:
         st.sidebar.info("동기화 시작 중...")
-    
+
     # Manual refresh button for progress updates
     if st.sidebar.button("🔄 진행 상황 새로고침", key="refresh_progress"):
         st.rerun()
@@ -301,7 +303,7 @@ def render_completed_status():
     if st.session_state.sync_result:
         result = st.session_state.sync_result
         st.sidebar.info(f"총 {result.get('total_rows', 0):,} 행 처리됨")
-    
+
     # Reset button
     if st.sidebar.button("새 동기화 시작"):
         handle_reset_sync()
@@ -319,10 +321,10 @@ def render_error_status():
     if st.session_state.sync_error:
         error = st.session_state.sync_error
         st.sidebar.text(f"에러: {error.get('exception', 'Unknown error')}")
-        
+
         with st.sidebar.expander("상세 에러 정보"):
             st.code(error.get('traceback', ''))
-    
+
     # Reset button
     if st.sidebar.button("다시 시도"):
         handle_retry_sync()

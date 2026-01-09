@@ -5,9 +5,9 @@ This module provides functions for initializing and managing Streamlit
 session state variables.
 """
 
-import streamlit as st
 import queue
 
+import streamlit as st
 
 # Auto-refresh interval for sync progress (seconds)
 SYNC_PROGRESS_REFRESH_INTERVAL = 2
@@ -16,7 +16,7 @@ SYNC_PROGRESS_REFRESH_INTERVAL = 2
 def initialize_session_state():
     """
     Initialize all session state variables with default values.
-    
+
     This function should be called at the start of the Streamlit app
     to ensure all required session state variables exist.
     """
@@ -32,7 +32,7 @@ def initialize_session_state():
         'converted_data_cache': {},  # Cache for converted DataFrames by table
         'cache_metadata': {}  # Metadata for each cached table (last_timestamp, row_count, etc.)
     }
-    
+
     for key, value in defaults.items():
         if key not in st.session_state:
             st.session_state[key] = value
@@ -41,7 +41,7 @@ def initialize_session_state():
 def release_sync_lock():
     """
     Release the sync lock if it exists.
-    
+
     This is a helper function to avoid code duplication when releasing
     the lock on completion or error.
     """

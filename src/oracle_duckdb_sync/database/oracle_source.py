@@ -1,9 +1,11 @@
 """
 Oracle 데이터베이스 연결 관리 모듈
 """
-import oracledb
 import datetime
 import os
+
+import oracledb
+
 from oracle_duckdb_sync.config import Config
 
 # Thick 모드 초기화 (Oracle Client 라이브러리 사용)
@@ -23,7 +25,7 @@ def _ensure_oracle_client(config=None):
                 default_paths = []
                 if config and config.oracle_client_directories:
                     default_paths = config.oracle_client_directories
-                
+
                 # Fallback defaults if config not provided
                 if not default_paths:
                     default_paths = [
@@ -88,7 +90,7 @@ class OracleSource:
             config (Config): Oracle 연결 정보
         """
         from oracle_duckdb_sync.log.logger import setup_logger
-        
+
         self.config = config
         self.conn = None
         self.pool = None
@@ -105,13 +107,13 @@ class OracleSource:
         try:
             # Oracle 11.2를 위해 Thick 모드 초기화
             _ensure_oracle_client(self.config)
-            
+
             # DSN 연결 문자열 생성
             dsn = f"{self.config.oracle_host}:{self.config.oracle_port}/{self.config.oracle_service_name}"
-            
+
             self.logger.info(f"Attempting connection to Oracle (Thick mode): {dsn}")
             self.logger.info(f"User: {self.config.oracle_user}")
-            
+
             # Thick 모드로 연결 (Oracle 11.2 지원)
             # sqlnet.ora 파일 수정으로 ORA-12638 오류 해결됨
             self.conn = oracledb.connect(
@@ -119,15 +121,15 @@ class OracleSource:
                 password=self.config.oracle_password,
                 dsn=dsn
             )
-            
+
             self.logger.info("Successfully connected to Oracle database")
             return self.conn
-                
+
         except oracledb.DatabaseError as e:
             error_obj, = e.args
             self.logger.error(f"Oracle Database Error: {error_obj.code} - {error_obj.message}")
             self.logger.error(f"Connection details - DSN: {dsn}, User: {self.config.oracle_user}")
-            
+
             # ORA-12638 특정 오류에 대한 추가 정보 제공
             if error_obj.code == 12638:
                 self.logger.error("ORA-12638: Credential retrieval failed")
@@ -181,7 +183,7 @@ class OracleSource:
 
     def fetch_batch(self, query: str, batch_size: int = 1000):
         """Fetch next batch from the query. Maintains cursor state for pagination.
-        
+
         WARNING: This method is stateful and NOT thread-safe if used on the same instance
         with different queries. Use fetch_generator for thread-safe iteration.
         """
@@ -218,12 +220,12 @@ class OracleSource:
 
     def fetch_generator(self, query: str, batch_size: int = 1000):
         """Yield batches of rows from the query.
-        
+
         This method is thread-safe as it creates a fresh cursor for each execution.
         """
         if not self.conn:
             self.connect()
-            
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(query)
@@ -240,17 +242,17 @@ class OracleSource:
 
     def get_table_schema(self, table_name: str):
         """Get table schema from Oracle data dictionary
-        
+
         Args:
             table_name: Table name, can be "SCHEMA.TABLE" or just "TABLE"
-        
+
         Returns:
             list: List of tuples (column_name, data_type)
         """
         # Ensure connection is established
         if not self.conn:
             self.connect()
-        
+
         # Parse schema and table name
         if '.' in table_name:
             schema_name, table_only = table_name.split('.', 1)
@@ -259,7 +261,7 @@ class OracleSource:
         else:
             schema_name = None
             table_only = table_name.upper()
-        
+
         # Build query based on whether schema is specified
         if schema_name:
             query = """
@@ -277,7 +279,7 @@ class OracleSource:
             ORDER BY column_id
             """
             params = {"table_name": table_only}
-        
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(query, params)

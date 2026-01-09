@@ -5,21 +5,22 @@ This adapter allows the application to work with Streamlit without
 the core business logic depending on it.
 """
 
-from typing import Any, Dict, List, Optional
 from contextlib import contextmanager
+from typing import Any, Optional
+
 import streamlit as st
 
 from ..application.ui_presenter import (
-    UIPresenter, 
-    SessionStateManager, 
     LayoutManager,
-    MessageContext
+    MessageContext,
+    SessionStateManager,
+    UIPresenter,
 )
 
 
 class StreamlitPresenter(UIPresenter):
     """Streamlit-specific implementation of UIPresenter."""
-    
+
     def show_message(self, context: MessageContext) -> None:
         """Display a message using Streamlit."""
         message_func = {
@@ -28,26 +29,26 @@ class StreamlitPresenter(UIPresenter):
             'error': st.error,
             'success': st.success
         }.get(context.level, st.info)
-        
+
         message_func(context.message)
-        
+
         if context.expandable and context.details:
             with st.expander("상세 정보"):
                 st.code(context.details)
-    
+
     def show_progress(self, percentage: float, message: str) -> None:
         """Display progress bar."""
         st.progress(min(percentage, 1.0))
         st.text(message)
-    
+
     @contextmanager
     def show_spinner(self, message: str):
         """Show loading spinner."""
         with st.spinner(message):
             yield
-    
-    def get_user_input(self, 
-                       label: str, 
+
+    def get_user_input(self,
+                       label: str,
                        default_value: Any = None,
                        input_type: str = 'text',
                        **kwargs) -> Any:
@@ -69,11 +70,11 @@ class StreamlitPresenter(UIPresenter):
             return st.checkbox(label, value=default_value or False, **kwargs)
         else:
             return st.text_input(label, value=default_value or '', **kwargs)
-    
+
     def show_button(self, label: str, disabled: bool = False, **kwargs) -> bool:
         """Show button and return True if clicked."""
         return st.button(label, disabled=disabled, **kwargs)
-    
+
     def show_dataframe(self, df: Any, max_rows: Optional[int] = None) -> None:
         """Display a DataFrame."""
         if max_rows and len(df) > max_rows:
@@ -81,11 +82,11 @@ class StreamlitPresenter(UIPresenter):
             st.dataframe(df.head(max_rows))
         else:
             st.dataframe(df)
-    
+
     def show_chart(self, chart_data: Any, **kwargs) -> None:
         """Display a chart."""
         st.plotly_chart(chart_data, use_container_width=True, **kwargs)
-    
+
     def trigger_rerun(self) -> None:
         """Trigger Streamlit rerun."""
         st.rerun()
@@ -93,24 +94,24 @@ class StreamlitPresenter(UIPresenter):
 
 class StreamlitSessionState(SessionStateManager):
     """Streamlit-specific session state manager."""
-    
+
     def get(self, key: str, default: Any = None) -> Any:
         """Get value from Streamlit session state."""
         return st.session_state.get(key, default)
-    
+
     def set(self, key: str, value: Any) -> None:
         """Set value in Streamlit session state."""
         st.session_state[key] = value
-    
+
     def has(self, key: str) -> bool:
         """Check if key exists."""
         return key in st.session_state
-    
+
     def delete(self, key: str) -> None:
         """Remove key from session state."""
         if key in st.session_state:
             del st.session_state[key]
-    
+
     def clear_pattern(self, pattern: str) -> None:
         """Clear all keys matching a pattern."""
         keys_to_delete = [k for k in st.session_state.keys() if pattern in k]
@@ -120,25 +121,25 @@ class StreamlitSessionState(SessionStateManager):
 
 class StreamlitLayout(LayoutManager):
     """Streamlit-specific layout manager."""
-    
+
     @contextmanager
-    def create_columns(self, ratios: List[int]):
+    def create_columns(self, ratios: list[int]):
         """Create column layout."""
         cols = st.columns(ratios)
         yield cols
-    
+
     @contextmanager
     def create_expander(self, title: str, expanded: bool = False):
         """Create expandable section."""
         with st.expander(title, expanded=expanded) as exp:
             yield exp
-    
+
     @contextmanager
     def create_sidebar(self):
         """Get sidebar context."""
         # Streamlit sidebar is global, so we just yield a marker
         yield st.sidebar
-    
+
     def add_divider(self) -> None:
         """Add a visual divider."""
         st.markdown("---")
@@ -147,30 +148,30 @@ class StreamlitLayout(LayoutManager):
 class StreamlitAdapter:
     """
     Main adapter class that combines all Streamlit-specific implementations.
-    
+
     This provides a single point of access to all UI functionality.
     """
-    
+
     def __init__(self):
         self.presenter = StreamlitPresenter()
         self.session = StreamlitSessionState()
         self.layout = StreamlitLayout()
-    
+
     @staticmethod
     def configure_page(**kwargs):
         """Configure Streamlit page settings."""
         st.set_page_config(**kwargs)
-    
+
     @staticmethod
     def set_title(title: str):
         """Set page title."""
         st.title(title)
-    
+
     @staticmethod
     def set_header(header: str):
         """Set header."""
         st.header(header)
-    
+
     @staticmethod
     def set_subheader(subheader: str):
         """Set subheader."""

@@ -5,30 +5,32 @@ This module provides pure data query functionality without any UI dependencies.
 It can be used by any presentation layer (Streamlit, Flask, CLI, etc.).
 """
 
+from typing import Any, Optional
+
 import pandas as pd
-from typing import Dict, Any, Optional, List, Tuple
-from ..database.duckdb_source import DuckDBSource
+
 from ..config import Config
 from ..data.converter import detect_and_convert_types
+from ..database.duckdb_source import DuckDBSource
 from ..log.logger import setup_logger
 
 logger = setup_logger(__name__)
 
 
-def get_available_tables(duckdb: DuckDBSource) -> List[str]:
+def get_available_tables(duckdb: DuckDBSource) -> list[str]:
     """
     Get list of available tables in DuckDB.
-    
+
     Args:
         duckdb: DuckDBSource instance
-    
+
     Returns:
         List of table names
     """
     try:
         available_tables = duckdb.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
+            SELECT table_name
+            FROM information_schema.tables
             WHERE table_schema = 'main'
             ORDER BY table_name
         """)
@@ -39,10 +41,10 @@ def get_available_tables(duckdb: DuckDBSource) -> List[str]:
         return []
 
 
-def determine_default_table_name(config: Config, table_list: List[str]) -> str:
+def determine_default_table_name(config: Config, table_list: list[str]) -> str:
     """
     Determine default table name for query based on configuration.
-    
+
     Args:
         config: Configuration object
         table_list: List of available tables
@@ -77,37 +79,37 @@ def get_table_row_count(duckdb: DuckDBSource, table_name: str) -> int:
         return 0
 
 
-def query_table_raw(duckdb: DuckDBSource, 
-                    table_name: str, 
-                    limit: int = 100) -> Dict[str, Any]:
+def query_table_raw(duckdb: DuckDBSource,
+                    table_name: str,
+                    limit: int = 100) -> dict[str, Any]:
     """
     Query DuckDB table and return raw DataFrame.
-    
+
     Args:
         duckdb: DuckDBSource instance
         table_name: Table name to query
         limit: Maximum rows to fetch
-    
+
     Returns:
         Dictionary with success status, DataFrame, and metadata
     """
     try:
         query = f"SELECT * FROM {table_name} LIMIT {limit}"
         logger.info(f"Executing query: {query}")
-        
+
         result = duckdb.execute(query)
-        
+
         if not result:
             return {
                 'success': False,
                 'error': f"No data found in table '{table_name}'",
                 'df': None
             }
-        
+
         # Convert to DataFrame
         conn = duckdb.get_connection()
         df = conn.execute(query).df()
-        
+
         if df is None or len(df) == 0:
             # Check if table exists
             tables = duckdb.execute("SHOW TABLES")
@@ -117,14 +119,14 @@ def query_table_raw(duckdb: DuckDBSource,
                 'df': None,
                 'available_tables': [t[0] for t in tables] if tables else []
             }
-        
+
         return {
             'success': True,
             'df': df,
             'row_count': len(df),
             'table_name': table_name
         }
-        
+
     except Exception as e:
         logger.error(f"Query failed: {e}")
         return {
@@ -137,27 +139,27 @@ def query_table_raw(duckdb: DuckDBSource,
 def query_table_with_conversion(duckdb: DuckDBSource,
                                  table_name: str,
                                  limit: int = 100,
-                                 auto_convert: bool = True) -> Dict[str, Any]:
+                                 auto_convert: bool = True) -> dict[str, Any]:
     """
     Query DuckDB table with automatic type conversion.
-    
+
     Args:
         duckdb: DuckDBSource instance
         table_name: Table name to query
         limit: Maximum rows to fetch
         auto_convert: Whether to automatically convert types
-    
+
     Returns:
         Dictionary with success status, converted DataFrame, and conversion metadata
     """
     # First get raw data
     raw_result = query_table_raw(duckdb, table_name, limit)
-    
+
     if not raw_result['success']:
         return raw_result
-    
+
     df_raw = raw_result['df']
-    
+
     if not auto_convert:
         return {
             'success': True,
@@ -167,11 +169,11 @@ def query_table_with_conversion(duckdb: DuckDBSource,
             'row_count': len(df_raw),
             'table_name': table_name
         }
-    
+
     # Apply automatic type conversion
     try:
         df_converted, conversions = detect_and_convert_types(df_raw)
-        
+
         return {
             'success': True,
             'df_converted': df_converted,
@@ -196,18 +198,18 @@ def query_table_with_conversion(duckdb: DuckDBSource,
 def query_table_aggregated(duckdb: DuckDBSource,
                            table_name: str,
                            time_column: str,
-                           value_columns: List[str],
-                           interval: str = '1h') -> Dict[str, Any]:
+                           value_columns: list[str],
+                           interval: str = '1h') -> dict[str, Any]:
     """
     Query table with time-based aggregation.
-    
+
     Args:
         duckdb: DuckDBSource instance
         table_name: Table name
         time_column: Timestamp column name
         value_columns: Columns to aggregate
         interval: Time interval (e.g., '1h', '1d')
-    
+
     Returns:
         Dictionary with aggregated data
     """
@@ -218,11 +220,11 @@ def query_table_aggregated(duckdb: DuckDBSource,
             agg_parts.append(f"AVG({col}) as {col}_avg")
             agg_parts.append(f"MIN({col}) as {col}_min")
             agg_parts.append(f"MAX({col}) as {col}_max")
-        
+
         agg_clause = ", ".join(agg_parts)
-        
+
         query = f"""
-            SELECT 
+            SELECT
                 time_bucket(INTERVAL '{interval}', {time_column}) as time_bucket,
                 COUNT(*) as point_count,
                 {agg_clause}
@@ -230,19 +232,19 @@ def query_table_aggregated(duckdb: DuckDBSource,
             GROUP BY time_bucket
             ORDER BY time_bucket
         """
-        
+
         logger.info(f"Executing aggregation query with interval {interval}")
-        
+
         conn = duckdb.get_connection()
         df_agg = conn.execute(query).df()
-        
+
         if df_agg is None or len(df_agg) == 0:
             return {
                 'success': False,
                 'error': 'No data returned from aggregation query',
                 'df_aggregated': None
             }
-        
+
         return {
             'success': True,
             'df_aggregated': df_agg,
@@ -251,7 +253,7 @@ def query_table_aggregated(duckdb: DuckDBSource,
             'interval': interval,
             'query_mode': 'aggregated'
         }
-        
+
     except Exception as e:
         logger.error(f"Aggregation query failed: {e}")
         return {
@@ -264,10 +266,10 @@ def query_table_aggregated(duckdb: DuckDBSource,
 def detect_time_column(df: pd.DataFrame) -> Optional[str]:
     """
     Detect timestamp column in DataFrame.
-    
+
     Args:
         df: DataFrame to analyze
-    
+
     Returns:
         Name of timestamp column, or None if not found
     """
@@ -275,23 +277,23 @@ def detect_time_column(df: pd.DataFrame) -> Optional[str]:
     datetime_cols = df.select_dtypes(include=['datetime64']).columns.tolist()
     if datetime_cols:
         return datetime_cols[0]
-    
+
     # Check for common timestamp column names
     common_names = ['timestamp', 'time', 'datetime', 'date', 'created_at', 'updated_at']
     for name in common_names:
         if name.lower() in [col.lower() for col in df.columns]:
             return name
-    
+
     return None
 
 
-def detect_numeric_columns(df: pd.DataFrame) -> List[str]:
+def detect_numeric_columns(df: pd.DataFrame) -> list[str]:
     """
     Detect numeric columns in DataFrame.
-    
+
     Args:
         df: DataFrame to analyze
-    
+
     Returns:
         List of numeric column names
     """

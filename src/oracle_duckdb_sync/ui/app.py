@@ -1,35 +1,31 @@
-import streamlit as st
 import time
-from oracle_duckdb_sync.config import load_config
-from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
-from oracle_duckdb_sync.log.logger import setup_logger
 
-# 🆕 Cache provider injection for framework independence
-from oracle_duckdb_sync.adapters.streamlit_cache import StreamlitCacheProvider
-from oracle_duckdb_sync import data
-
-# 🆕 Use Application Service Layer instead of direct data access
-from oracle_duckdb_sync.application.query_service import QueryService
+import streamlit as st
 
 # 🆕 Use StreamlitAdapter for UI abstraction
 from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
-from oracle_duckdb_sync.application.ui_presenter import MessageContext
-from oracle_duckdb_sync.ui.ui_helpers import show_table_list
 
-from oracle_duckdb_sync.ui.handlers import (
-    handle_test_sync,
-    handle_full_sync,
-    render_sync_status_ui
-)
-from oracle_duckdb_sync.ui.session_state import (
-    initialize_session_state,
-    release_sync_lock,
-    SYNC_PROGRESS_REFRESH_INTERVAL
-)
+# 🆕 Cache provider injection for framework independence
+from oracle_duckdb_sync.adapters.streamlit_cache import StreamlitCacheProvider
+
+# 🆕 Use Application Service Layer instead of direct data access
+from oracle_duckdb_sync.application.query_service import QueryService
+from oracle_duckdb_sync.application.ui_presenter import MessageContext
+from oracle_duckdb_sync.config import load_config
+
 # Legacy imports for backward compatibility (will be removed in Phase 3)
 from oracle_duckdb_sync.data.query import (
     query_duckdb_table_cached,
 )
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.log.logger import setup_logger
+from oracle_duckdb_sync.ui.handlers import handle_full_sync, handle_test_sync, render_sync_status_ui
+from oracle_duckdb_sync.ui.session_state import (
+    SYNC_PROGRESS_REFRESH_INTERVAL,
+    initialize_session_state,
+    release_sync_lock,
+)
+from oracle_duckdb_sync.ui.ui_helpers import show_table_list
 from oracle_duckdb_sync.ui.visualization import render_data_visualization
 
 # Set up logger for app.py
@@ -48,7 +44,7 @@ def check_progress():
     try:
         while not st.session_state.progress_queue.empty():
             msg = st.session_state.progress_queue.get_nowait()
-            
+
             if msg['type'] == 'progress':
                 st.session_state.sync_progress = msg['data']
             elif msg['type'] == 'complete':
@@ -87,7 +83,7 @@ def main():
         # 🆕 Initialize QueryService for UI-independent data access
         query_service = QueryService(duckdb)
         app_logger.info("QueryService initialized")
-        
+
     except Exception as e:
         app_logger.error(f"설정 로드 실패: {e}")
         ui_adapter.presenter.show_message(MessageContext(
@@ -95,55 +91,55 @@ def main():
             message=f"설정을 로드할 수 없습니다: {e}"
         ))
         return
-    
+
     # Sidebar 메뉴 구성을 바꾸려면 여길 고쳐야 함. jwlee
     st.sidebar.header("동기화 설정")
-    
+
     # Display current configuration from .env
     st.sidebar.info(f"📋 설정된 테이블: {config.sync_oracle_table}")
-    
+
     # Use .env configuration
     table_name = config.oracle_full_table_name
     primary_key = config.sync_primary_key
     time_column = config.duckdb_time_column  # Use DuckDB-specific time column
-    
+
     # Test sync button with row limit
     st.sidebar.markdown("---")
     st.sidebar.subheader("🧪 테스트 동기화")
     test_row_limit = st.sidebar.number_input(
-        "테스트 행 수", 
-        min_value=10000, 
-        max_value=100000, 
-        value=100000, 
+        "테스트 행 수",
+        min_value=10000,
+        max_value=100000,
+        value=100000,
         step=10000,
         help="테스트로 가져올 최대 행 수 (기본: 10만)"
     )
-    
+
     # Always check for progress updates (including completion/error messages)
     # This ensures we detect when a background sync completes
     check_progress()
-    
+
     # Auto-refresh UI during sync to show real-time progress
     if st.session_state.sync_status == 'running':
         time.sleep(SYNC_PROGRESS_REFRESH_INTERVAL)
         st.rerun()
-    
+
     # Render sync status UI (running, completed, or error)
     render_sync_status_ui()
-    
+
     # Test sync button - only enabled when idle
-    if st.sidebar.button("🧪 테스트 동기화 실행 (제한된 행)", 
+    if st.sidebar.button("🧪 테스트 동기화 실행 (제한된 행)",
                          disabled=(st.session_state.sync_status == 'running')):
         handle_test_sync(config, test_row_limit, table_name)
-    
+
     st.sidebar.markdown("---")
     st.sidebar.subheader("🚀 전체 동기화")
-    
-    
-    if st.sidebar.button("🚀 전체 동기화 실행", 
+
+
+    if st.sidebar.button("🚀 전체 동기화 실행",
                          disabled=(st.session_state.sync_status == 'running')):
         handle_full_sync(config, table_name, primary_key, time_column, duckdb)
-        
+
     # Determine default table name
     # Use QueryService instead of query_core functions
     table_list = query_service.get_available_tables()
@@ -152,8 +148,8 @@ def main():
     show_table_list(table_list, ui_adapter)
 
     # Determine default table name
-    default_table = query_service.determine_default_table_name(config, table_list)    
-    
+    default_table = query_service.determine_default_table_name(config, table_list)
+
     duckdb_table_name = st.text_input("조회할 테이블명", value=default_table, help="DuckDB 테이블명 (소문자, 스키마 없이)")
 
     # Query DuckDB table with caching for type conversion
@@ -183,7 +179,7 @@ def main():
         else:
             resolution = None
             st.info("💡 LTTB 샘플링 적용됨")
-    
+
     if st.button("조회"):
         if query_mode == "집계 뷰 (빠름)":
             # 🆕 Use QueryService instead of direct data layer access
@@ -232,8 +228,8 @@ def main():
                 duckdb_query_result['row_count'] = row_count
                 st.session_state.query_result = duckdb_query_result
             else:
-                st.session_state.query_result = None            
-            
+                st.session_state.query_result = None
+
     st.subheader("시각화")
     # Display cached query result if available and successful
     if st.session_state.query_result and st.session_state.query_result.get('success') and st.session_state.query_result.get('df_converted') is not None:
@@ -274,7 +270,7 @@ def main():
         table_name_for_grid = query_result.get('table_name')
         total_rows = query_result.get('row_count')
         if total_rows is None and table_name_for_grid:
-            total_rows = get_table_row_count(duckdb, table_name_for_grid)
+            total_rows = query_service.get_table_row_count(table_name_for_grid)
         if total_rows is None and df_converted is not None:
             total_rows = len(df_converted)
 
@@ -304,7 +300,7 @@ def main():
                     limit=max_display_rows,
                     convert_types=True
                 )
-                
+
                 if raw_result.success:
                     grid_df = raw_result.data
                 else:
