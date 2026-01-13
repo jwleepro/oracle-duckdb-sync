@@ -1,8 +1,11 @@
 """
 AI Agent Chat Interface - Streamlit page for conversational AI.
 """
+from typing import Optional
+
 import streamlit as st
 
+from oracle_duckdb_sync.agent import SyncAgent
 from oracle_duckdb_sync.agent.core.llm_client import LLMConfig
 from oracle_duckdb_sync.agent.factory import AgentFactory
 from oracle_duckdb_sync.config import load_config
@@ -27,6 +30,50 @@ def render_chat_message(role: str, content: str):
     """Render a single chat message."""
     with st.chat_message(role):
         st.markdown(content)
+
+
+def stream_agent_response(
+    agent: SyncAgent,
+    prompt: str
+) -> tuple[Optional[str], list[dict]]:
+    """
+    Agent streaming 응답을 Streamlit에 실시간 렌더링.
+
+    Args:
+        agent: SyncAgent 인스턴스
+        prompt: 사용자 입력 메시지
+
+    Returns:
+        tuple: (응답 텍스트, 도구 실행 결과 리스트)
+    """
+    tool_results = []
+
+    with st.chat_message("assistant"):
+        text_placeholder = st.empty()
+        status_placeholder = st.empty()
+        full_text = ""
+
+        for chunk in agent.process_message_stream(prompt):
+            if chunk.type == "text":
+                full_text += chunk.content
+                text_placeholder.markdown(full_text + "▌")
+
+            elif chunk.type == "tool_status":
+                status_placeholder.info(f"🔧 {chunk.content}")
+
+            elif chunk.type == "tool_result":
+                tool_results.append(chunk.tool_result)
+                status_placeholder.empty()
+
+            elif chunk.type == "error":
+                text_placeholder.error(f"⚠️ {chunk.error}")
+                return None, []
+
+            elif chunk.type == "done":
+                text_placeholder.markdown(full_text)
+                status_placeholder.empty()
+
+    return full_text, tool_results
 
 
 def main():
@@ -81,26 +128,23 @@ def main():
         })
         render_chat_message("user", prompt)
 
-        # Get agent response
-        with st.spinner("🤔 생각 중..."):
-            response = st.session_state.agent.process_message(prompt)
+        # Streaming 응답 처리
+        response_text, tool_results = stream_agent_response(
+            st.session_state.agent,
+            prompt
+        )
 
-        # Display assistant response
-        assistant_content = response.message
-        if not response.success and response.error:
-            assistant_content = f"⚠️ {response.error}"
+        if response_text:
+            st.session_state.chat_messages.append({
+                "role": "assistant",
+                "content": response_text
+            })
 
-        st.session_state.chat_messages.append({
-            "role": "assistant",
-            "content": assistant_content
-        })
-        render_chat_message("assistant", assistant_content)
-
-        # Show tool results if any (expandable)
-        if response.tool_results:
-            with st.expander("🔧 도구 실행 상세"):
-                for result in response.tool_results:
-                    st.json(result)
+            # Show tool results if any (expandable)
+            if tool_results:
+                with st.expander("🔧 도구 실행 상세"):
+                    for result in tool_results:
+                        st.json(result)
 
         st.rerun()
 

@@ -2,8 +2,9 @@
 Sync AI Agent - Main orchestrator for AI-powered data operations.
 """
 import json
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 from oracle_duckdb_sync.log.logger import get_logger
 from oracle_duckdb_sync.util.serialization import json_dumps_safe
@@ -21,6 +22,16 @@ class AgentResponse:
     message: str
     tool_results: Optional[list[dict]] = None
     success: bool = True
+    error: Optional[str] = None
+
+
+@dataclass
+class StreamingAgentChunk:
+    """Agent streaming 청크."""
+    type: Literal["text", "tool_status", "tool_result", "error", "done"]
+    content: Optional[str] = None
+    tool_name: Optional[str] = None
+    tool_result: Optional[dict] = None
     error: Optional[str] = None
 
 
@@ -151,3 +162,118 @@ Available tools will be provided to you. Choose the appropriate tool based on th
     def reset_conversation(self) -> None:
         """대화 히스토리 초기화."""
         self.conversation.clear()
+
+    def process_message_stream(
+        self,
+        user_message: str
+    ) -> Iterator[StreamingAgentChunk]:
+        """
+        Streaming 방식으로 사용자 메시지 처리.
+
+        Generator를 반환하여 실시간 UI 업데이트 가능.
+
+        Args:
+            user_message: 사용자 입력 메시지
+
+        Yields:
+            StreamingAgentChunk: streaming 응답 청크
+        """
+        try:
+            self.conversation.add_user_message(user_message)
+
+            tools_schema = self.tools.get_all_schemas()
+            messages = self.conversation.to_openai_format()
+
+            yield from self._stream_llm_response(
+                messages=messages,
+                tools_schema=tools_schema
+            )
+
+        except AgentError as e:
+            logger.error(f"Agent error: {e}")
+            yield StreamingAgentChunk(type="error", error=str(e))
+        except Exception as e:
+            logger.exception(f"Unexpected error: {e}")
+            yield StreamingAgentChunk(type="error", error="예기치 않은 오류가 발생했습니다.")
+
+    def _stream_llm_response(
+        self,
+        messages: list[dict],
+        tools_schema: Optional[list[dict]]
+    ) -> Iterator[StreamingAgentChunk]:
+        """
+        단일 LLM 호출을 streaming으로 처리.
+
+        tool_calls 발생 시 도구 실행 후 재귀적으로 LLM을 재호출합니다.
+        """
+        content_buffer = ""
+        tool_calls_buffer: dict[int, dict] = {}
+
+        stream = self.llm.chat_completion_stream(
+            messages=messages,
+            tools=tools_schema if tools_schema else None
+        )
+
+        for chunk in stream:
+            if chunk.type == "content" and chunk.content:
+                content_buffer += chunk.content
+                yield StreamingAgentChunk(type="text", content=chunk.content)
+
+            elif chunk.type == "tool_call_start":
+                yield StreamingAgentChunk(
+                    type="tool_status",
+                    content=f"도구 호출 중: {chunk.tool_name}",
+                    tool_name=chunk.tool_name
+                )
+                tool_calls_buffer[chunk.tool_call_index] = {
+                    "id": chunk.tool_call_id,
+                    "name": chunk.tool_name,
+                    "arguments": ""
+                }
+
+            elif chunk.type == "tool_call_delta":
+                if chunk.tool_call_index in tool_calls_buffer:
+                    tool_calls_buffer[chunk.tool_call_index]["arguments"] += (
+                        chunk.tool_arguments_delta or ""
+                    )
+
+            elif chunk.type == "done":
+                if chunk.finish_reason == "tool_calls":
+                    tool_calls = list(tool_calls_buffer.values())
+
+                    self.conversation.add_assistant_message(
+                        content=content_buffer if content_buffer else None,
+                        tool_calls=tool_calls
+                    )
+
+                    for tool_call in tool_calls:
+                        yield StreamingAgentChunk(
+                            type="tool_status",
+                            content=f"실행 중: {tool_call['name']}",
+                            tool_name=tool_call['name']
+                        )
+
+                        result = self._execute_tool_call(tool_call)
+
+                        yield StreamingAgentChunk(
+                            type="tool_result",
+                            tool_name=tool_call['name'],
+                            tool_result=result
+                        )
+
+                        self.conversation.add_tool_result(
+                            tool_call_id=tool_call["id"],
+                            name=tool_call["name"],
+                            result=json_dumps_safe(result)
+                        )
+
+                    new_messages = self.conversation.to_openai_format()
+                    yield from self._stream_llm_response(
+                        messages=new_messages,
+                        tools_schema=tools_schema
+                    )
+                    return
+
+                else:
+                    self.conversation.add_assistant_message(content=content_buffer)
+                    yield StreamingAgentChunk(type="done")
