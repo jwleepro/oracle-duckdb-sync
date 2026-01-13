@@ -2,10 +2,11 @@
 Tests for LTTB (Largest Triangle Three Buckets) downsampling algorithm.
 """
 
-import pytest
 import numpy as np
 import pandas as pd
-from oracle_duckdb_sync.data.lttb import lttb_downsample, lttb_downsample_multi_y, _lttb_core
+import pytest
+
+from oracle_duckdb_sync.data.lttb import _lttb_core, lttb_downsample, lttb_downsample_multi_y
 
 
 class TestLTTBCore:

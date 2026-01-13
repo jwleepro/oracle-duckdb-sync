@@ -1,11 +1,14 @@
 """
 End-to-End Tests for Oracle-DuckDB Sync System
 """
+from unittest.mock import MagicMock, Mock, patch
+
 import pytest
-from unittest.mock import MagicMock, patch, Mock
+
 from oracle_duckdb_sync.config import Config, load_config
-from oracle_duckdb_sync.database.sync_engine import SyncEngine
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
+
 # Do NOT import OracleSource here - it will be imported after TNS_ADMIN is set
 
 
@@ -25,7 +28,7 @@ def e2e_config():
 def test_130_full_sync_e2e(e2e_config):
     """
     TEST-130: 초기 Full Sync E2E(Oracle → DuckDB → UI 조회)
-    
+
     Validates complete data flow:
     1. Extract data from Oracle
     2. Load into DuckDB
@@ -35,7 +38,7 @@ def test_130_full_sync_e2e(e2e_config):
     # Oracle data extraction -> DuckDB loading -> UI query
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
          patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
-        
+
         # Setup mock Oracle source with sample data
         mock_oracle = mock_oracle_cls.return_value
         oracle_data = [
@@ -44,7 +47,7 @@ def test_130_full_sync_e2e(e2e_config):
             (3, "Record3", "2023-01-03 12:00:00")
         ]
         mock_oracle.fetch_generator.return_value = iter([oracle_data])
-        
+
         # Setup mock DuckDB target
         mock_duckdb = mock_duckdb_cls.return_value
 
@@ -66,11 +69,11 @@ def test_130_full_sync_e2e(e2e_config):
         assert mock_duckdb.ensure_database.called
         assert mock_duckdb.insert_batch.called
         assert total_rows == 3
-        
+
         # Verify the exact data that was inserted
         assert len(inserted_data) == 3
         assert inserted_data[0] == (1, "Record1", "2023-01-01 10:00:00")
-        
+
         # Step 2: Query data from DuckDB (simulating UI query)
         # Mock the query result to return the synced data
         mock_duckdb.execute.return_value = inserted_data
@@ -81,7 +84,7 @@ def test_130_full_sync_e2e(e2e_config):
             ui_duckdb_source.execute = Mock(return_value=inserted_data)
 
             query_result = ui_duckdb_source.execute("SELECT * FROM TARGET_TABLE LIMIT 100")
-        
+
         # Step 3: Verify UI can retrieve the synced data
         assert query_result is not None
         assert len(query_result) == 3
@@ -91,7 +94,7 @@ def test_130_full_sync_e2e(e2e_config):
         assert query_result[1][1] == "Record2"
         assert query_result[2][0] == 3
         assert query_result[2][1] == "Record3"
-        
+
         # Verify the data flow: Oracle data → DuckDB → UI query returns same data
         assert query_result == oracle_data
 
@@ -103,53 +106,53 @@ def test_130_full_sync_e2e(e2e_config):
 def test_131_incremental_sync_e2e_real_db():
     """
     TEST-131: 일일 증분 동기화 E2E 및 상태 업데이트
-    
+
     Uses actual .env configuration to test:
     1. Perform initial full sync from Oracle (in 10k batches)
     2. Save sync state with last timestamp
     3. Verify state was saved correctly
     4. Test incremental sync query
     5. Update state after incremental sync
-    
+
     NOTE: This test requires:
     - Valid .env file with actual DB credentials
     - Oracle table must exist with time column
     """
+    import datetime
     import os
+    import shutil
     import tempfile
     import time
-    import datetime
-    import shutil
 
     # Set TNS_ADMIN to use test directory's sqlnet.ora
     test_dir = os.path.dirname(__file__)
     old_tns_admin = os.environ.get('TNS_ADMIN')
     os.environ['TNS_ADMIN'] = test_dir
-    
+
     # Temporary directory for state file
     tmpdir = tempfile.mkdtemp()
-    
+
     try:
         # Import OracleSource AFTER setting TNS_ADMIN
         from oracle_duckdb_sync.database.oracle_source import OracleSource
 
         # Load configuration from .env file
         config = load_config()
-        
+
         # Get table configuration from config object
         oracle_schema = config.sync_oracle_schema
         oracle_table_name = config.sync_oracle_table or "SOURCE_TABLE"
-        
+
         if oracle_schema:
             oracle_table = f"{oracle_schema}.{oracle_table_name}"
         else:
             oracle_table = oracle_table_name
-            
+
         duckdb_table = config.sync_duckdb_table or oracle_table_name.lower()
         time_column = config.sync_time_column.split(',')[0].strip()
         primary_key = config.sync_primary_key
 
-        print(f"\n[TEST-131] Incremental Sync E2E Test")
+        print("\n[TEST-131] Incremental Sync E2E Test")
         print(f"  Oracle table: {oracle_table}")
         print(f"  DuckDB table: {duckdb_table}")
         print(f"  Time column: {time_column}")
@@ -157,7 +160,7 @@ def test_131_incremental_sync_e2e_real_db():
 
         # Step 1: Connect to Oracle and get initial data count
         oracle_source = OracleSource(config)
-        
+
         # First, check if table exists and get accessible tables if not
         try:
             # Get total row count
@@ -169,64 +172,64 @@ def test_131_incremental_sync_e2e_real_db():
                 # Table doesn't exist, list available tables
                 print(f"\n[ERROR] Table {oracle_table} not found!")
                 print(f"  Checking available tables for user {config.oracle_user}...")
-                
+
                 # Query user tables
                 tables_query = """
-                SELECT table_name, num_rows 
-                FROM user_tables 
+                SELECT table_name, num_rows
+                FROM user_tables
                 WHERE ROWNUM <= 20
                 ORDER BY table_name
                 """
                 available_tables = oracle_source.fetch_all(tables_query)
-                
-                print(f"\n  User tables (showing first 20):")
+
+                print("\n  User tables (showing first 20):")
                 for table_name, num_rows in available_tables:
                     print(f"    - {table_name}: {num_rows if num_rows else 'N/A'} rows")
-                
+
                 # Also check all accessible tables
                 all_tables_query = f"""
-                SELECT owner, table_name, num_rows 
-                FROM all_tables 
+                SELECT owner, table_name, num_rows
+                FROM all_tables
                 WHERE table_name LIKE '%{oracle_table}%'
                 ORDER BY owner, table_name
                 """
                 all_accessible_tables = oracle_source.fetch_all(all_tables_query)
-                
+
                 print(f"\n  All accessible tables matching '{oracle_table}':")
                 for owner, table_name, num_rows in all_accessible_tables:
                     print(f"    - {owner}.{table_name}: {num_rows if num_rows else 'N/A'} rows")
-                
+
                 raise Exception(f"Table {oracle_table} not found. Please check available tables above.")
             else:
                 raise
-        
+
         print(f"\n[Step 1] Oracle table has {total_rows} total rows")
         assert total_rows > 0, f"Oracle table {oracle_table} is empty"
 
         # Step 2: Perform initial full sync in 10k batches
-        print(f"\n[Step 2] Performing full sync in 10k batches...")
-        
+        print("\n[Step 2] Performing full sync in 10k batches...")
+
         with patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
             mock_duckdb = mock_duckdb_cls.return_value
             mock_duckdb.ensure_database.return_value = None
             mock_duckdb.table_exists.return_value = True
-            
+
             # Capture all inserted batches
             all_batches = []
             def capture_batch(table, data):
                 all_batches.append(data)
                 print(f"    Batch {len(all_batches)}: {len(data)} rows")
             mock_duckdb.insert_batch.side_effect = capture_batch
-            
+
             # Mock schema operations for full_sync
-            schema = oracle_source.get_table_schema(oracle_table)
+            oracle_source.get_table_schema(oracle_table)
             # map_oracle_type is now in SyncEngine, not DuckDBSource
             mock_duckdb.build_create_table_query = MagicMock(return_value="CREATE TABLE test")
             mock_duckdb.execute = MagicMock()
-            
+
             # Initialize sync engine
             engine = SyncEngine(config)
-            
+
             # Perform full sync with 10k batch size
             start_time = time.time()
             total_synced = engine.sync_in_batches(
@@ -235,34 +238,34 @@ def test_131_incremental_sync_e2e_real_db():
                 batch_size=10000
             )
             elapsed = time.time() - start_time
-            
+
             print(f"\n  [Step 2 Complete] Synced {total_synced} rows in {elapsed:.2f}s")
             print(f"    Number of batches: {len(all_batches)}")
             print(f"    Throughput: {total_synced/elapsed:.0f} rows/sec")
-            
+
             # Verify batching behavior
             assert len(all_batches) > 0, "No batches were captured"
-            
+
             # If we have multiple batches, all except last should have 10k rows
             if len(all_batches) > 1:
                 for i, batch in enumerate(all_batches[:-1]):
                     assert len(batch) == 10000, f"Batch {i} should have 10k rows, got {len(batch)}"
-            
+
             # Last batch should have <= 10k rows
             last_batch = all_batches[-1]
             assert len(last_batch) <= 10000, f"Last batch should have <= 10k rows, got {len(last_batch)}"
-            
+
             # Total rows should match
             total_captured = sum(len(batch) for batch in all_batches)
             assert total_captured == total_synced, \
                 f"Captured {total_captured} rows but engine reported {total_synced}"
 
         # Step 3: Save sync state with current timestamp
-        print(f"\n[Step 3] Saving sync state...")
-        
+        print("\n[Step 3] Saving sync state...")
+
         # Use current time as last_sync_time
         last_sync_time = datetime.datetime.now().isoformat()
-        
+
         # Use temporary state file
         state_file = os.path.join(tmpdir, "sync_state.json")
         engine.save_state(
@@ -270,26 +273,26 @@ def test_131_incremental_sync_e2e_real_db():
             last_value=last_sync_time,
             file_path=state_file
         )
-        
+
         print(f"    Saved state: {oracle_table} -> {last_sync_time}")
 
         # Step 4: Verify state was saved correctly
-        print(f"\n[Step 4] Verifying saved state...")
-        
+        print("\n[Step 4] Verifying saved state...")
+
         loaded_state = engine.load_state(
             table_name=oracle_table,
             file_path=state_file
         )
-        
+
         assert loaded_state is not None, "Failed to load sync state"
         assert loaded_state == last_sync_time, \
             f"Loaded state {loaded_state} doesn't match saved {last_sync_time}"
-        
+
         print(f"    State verified: {loaded_state}")
 
         # Step 5: Test incremental sync query
-        print(f"\n[Step 5] Testing incremental sync query...")
-        
+        print("\n[Step 5] Testing incremental sync query...")
+
         # Build incremental query with a past timestamp to get some data
         past_time = "2024-01-01 00:00:00"
         incremental_query = oracle_source.build_incremental_query(
@@ -297,90 +300,90 @@ def test_131_incremental_sync_e2e_real_db():
             time_column,
             past_time
         )
-        
+
         print(f"    Query: {incremental_query[:100]}...")
-        
+
         # Fetch one batch to verify query works
         incremental_data = oracle_source.fetch_batch(
             incremental_query,
             batch_size=100
         )
-        
+
         assert incremental_data is not None, "Incremental query failed"
         print(f"    Incremental query returned {len(incremental_data)} rows")
 
         # Step 6: Update state after incremental sync
-        print(f"\n[Step 6] Updating state after incremental sync...")
-        
+        print("\n[Step 6] Updating state after incremental sync...")
+
         new_sync_time = datetime.datetime.now().isoformat()
         engine.save_state(
             table_name=oracle_table,
             last_value=new_sync_time,
             file_path=state_file
         )
-        
+
         updated_state = engine.load_state(
             table_name=oracle_table,
             file_path=state_file
         )
-        
+
         assert updated_state == new_sync_time, \
             f"Updated state {updated_state} doesn't match new time {new_sync_time}"
-        
+
         print(f"    State updated: {updated_state}")
-        
-        print(f"\n[SUCCESS] TEST-131 Complete!")
+
+        print("\n[SUCCESS] TEST-131 Complete!")
         print(f"  OK Full sync with 10k batches: {total_synced} rows")
         print(f"  OK Number of batches: {len(all_batches)}")
-        print(f"  OK State save/load verified")
-        print(f"  OK Incremental query works")
-        print(f"  OK State update after incremental sync works")
+        print("  OK State save/load verified")
+        print("  OK Incremental query works")
+        print("  OK State update after incremental sync works")
 
         # Cleanup
         oracle_source.disconnect()
-        
+
     finally:
         # Restore original TNS_ADMIN
         if old_tns_admin:
             os.environ['TNS_ADMIN'] = old_tns_admin
         elif 'TNS_ADMIN' in os.environ:
             del os.environ['TNS_ADMIN']
-        
+
         # Clean up temporary directory
         shutil.rmtree(tmpdir, ignore_errors=True)
 
 
 def test_132_duplicate_sync_prevention_with_upsert():
     """TEST-132: 같은 날 여러 번 동기화 시 UPSERT로 중복 방지 검증
-    
+
     Scenario:
     1. Create table with PRIMARY KEY
     2. First sync: Insert initial data
     3. Second sync (same day): Try to insert same data again
     4. Verify: No duplicates, data is UPSERT'd (updated, not duplicated)
-    
+
     This test verifies that incremental sync with UPSERT prevents duplicate data
     when sync is run multiple times on the same day.
     """
-    import tempfile
     import os
-    
+    import tempfile
+
     # Create temporary DuckDB file
     tmpdir = tempfile.mkdtemp()
     duckdb_file = os.path.join(tmpdir, "test_upsert.duckdb")
-    
+
     try:
         config = Config(
             oracle_host="dummy", oracle_port=1521, oracle_service_name="dummy",
             oracle_user="dummy", oracle_password="dummy",
             duckdb_path=duckdb_file
         )
-        
+
         # Setup real DuckDB and mock Oracle
         with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls:
             mock_oracle = mock_oracle_cls.return_value
             mock_oracle.conn = True  # Pretend we're connected
-            
+
             # Mock schema retrieval
             mock_oracle.get_table_schema.return_value = [
                 ("id", "NUMBER"),
@@ -388,12 +391,12 @@ def test_132_duplicate_sync_prevention_with_upsert():
                 ("value", "NUMBER"),
                 ("updated_at", "TIMESTAMP")
             ]
-            
+
             # Initialize sync engine with real DuckDB
             engine = SyncEngine(config)
-            
+
             print("\n[Step 1] Creating table with PRIMARY KEY...")
-            
+
             # Create table in DuckDB
             engine.duckdb.execute("""
                 CREATE TABLE test_sync (
@@ -403,24 +406,24 @@ def test_132_duplicate_sync_prevention_with_upsert():
                     updated_at TIMESTAMP
                 )
             """)
-            
+
             # Verify table was created
             assert engine.duckdb.table_exists("test_sync")
             print("  OK Table created with PRIMARY KEY on 'id'")
-            
+
             # [Step 2] First sync: Insert initial data (3 rows)
             print("\n[Step 2] First sync at 9:00 AM...")
-            
+
             first_sync_data = [
                 (1, "Alice", 100, "2026-01-03 09:00:00"),
                 (2, "Bob", 200, "2026-01-03 09:00:00"),
                 (3, "Charlie", 300, "2026-01-03 09:00:00")
             ]
-            
+
             # Mock Oracle to return first sync data
             mock_oracle.fetch_generator.return_value = iter([first_sync_data])
             mock_oracle.build_incremental_query.return_value = "SELECT * FROM test_table WHERE updated_at > '2026-01-03 00:00:00'"
-            
+
             # Perform first incremental sync with PRIMARY KEY for UPSERT
             total_rows_1 = engine.incremental_sync(
                 oracle_table_name="test_table",
@@ -429,30 +432,30 @@ def test_132_duplicate_sync_prevention_with_upsert():
                 last_value="2026-01-03 00:00:00",
                 primary_key="id"
             )
-            
+
             assert total_rows_1 == 3
             print(f"  OK First sync completed: {total_rows_1} rows")
-            
+
             # Verify data in DuckDB
             rows = engine.duckdb.conn.execute("SELECT * FROM test_sync ORDER BY id").fetchall()
             assert len(rows) == 3, f"Expected 3 rows after first sync, got {len(rows)}"
             # DuckDB returns datetime objects, so compare first 3 fields only
             assert rows[0][:3] == (1, "Alice", 100)
-            print(f"  OK Verified: 3 rows in DuckDB")
-            
+            print("  OK Verified: 3 rows in DuckDB")
+
             # [Step 3] Second sync (same day): Same data + 1 updated + 1 new
             print("\n[Step 3] Second sync at 3:00 PM (same day)...")
-            
+
             second_sync_data = [
                 (1, "Alice", 100, "2026-01-03 09:00:00"),  # Duplicate (same)
                 (2, "Bob Updated", 250, "2026-01-03 15:00:00"),  # Duplicate but updated
                 (3, "Charlie", 300, "2026-01-03 09:00:00"),  # Duplicate (same)
                 (4, "David", 400, "2026-01-03 15:00:00")  # New row
             ]
-            
+
             # Reset mock for second sync
             mock_oracle.fetch_generator.return_value = iter([second_sync_data])
-            
+
             # Perform second incremental sync (same day) with PRIMARY KEY
             total_rows_2 = engine.incremental_sync(
                 oracle_table_name="test_table",
@@ -461,19 +464,19 @@ def test_132_duplicate_sync_prevention_with_upsert():
                 last_value="2026-01-03 00:00:00",  # Same last_value (same day!)
                 primary_key="id"  # UPSERT mode
             )
-            
+
             assert total_rows_2 == 4
             print(f"  OK Second sync completed: {total_rows_2} rows processed")
-            
+
             # [Step 4] Verify: NO DUPLICATES, only 4 rows total
             print("\n[Step 4] Verifying UPSERT behavior (no duplicates)...")
-            
+
             rows = engine.duckdb.conn.execute("SELECT * FROM test_sync ORDER BY id").fetchall()
-            
+
             # CRITICAL: Should have 4 rows, NOT 7 (3 + 4)
             assert len(rows) == 4, \
                 f"Expected 4 rows (UPSERT), but got {len(rows)}. Duplicates detected!"
-            
+
             print(f"  OK Total rows: {len(rows)} (no duplicates!)")
 
             # Verify row 1: unchanged (same data) - compare first 3 fields
@@ -495,17 +498,17 @@ def test_132_duplicate_sync_prevention_with_upsert():
             assert rows[3][:3] == (4, "David", 400), \
                 "Row 4 should be newly inserted"
             print("  OK Row 4 (David): new row inserted")
-            
+
             print("\n[SUCCESS] UPSERT prevents duplicates when syncing multiple times per day!")
             print("  OK First sync: 3 rows")
             print("  OK Second sync: 4 rows processed")
             print("  OK Final count: 4 rows (no duplicates)")
             print("  OK Updated row: Bob 200→250")
             print("  OK New row: David added")
-            
+
             # Cleanup
             engine.close()
-            
+
     finally:
         # Clean up temporary directory
         import shutil

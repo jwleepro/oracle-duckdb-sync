@@ -1,8 +1,9 @@
+from unittest.mock import patch
+
 import pytest
-import time
-from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.database.sync_engine import SyncEngine
+
 from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 
 
 @pytest.fixture
@@ -44,7 +45,7 @@ def test_072_batch_sync_processing(mock_config):
 def test_080_incremental_sync_query(mock_config):
     """TEST-080: 마지막 동기화 시각 이후 데이터 조회 확인"""
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
         # Return empty iterator
         mock_oracle.fetch_generator.return_value = iter([])
@@ -57,7 +58,7 @@ def test_080_incremental_sync_query(mock_config):
 def test_082_retry_on_failure(mock_config):
     """TEST-082: 실패 시 재시도 동작 확인 (최소 3회)"""
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
         # Mock fetch_generator to raise Exception
         mock_oracle.fetch_generator.side_effect = Exception("DB Error")
@@ -70,10 +71,9 @@ def test_082_retry_on_failure(mock_config):
 def test_071_full_sync_progress_logging(mock_config):
     """TEST-071: 진행률·로그 기록 검증"""
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls, \
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"), \
          patch.object(SyncEngine, "_log_progress") as mock_log_progress:
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
         # Simulate 2 batches
         mock_oracle.fetch_generator.return_value = iter([
             [(i, f"Data{i}") for i in range(50)],
@@ -127,7 +127,7 @@ def test_083_save_load_sync_state(tmp_path, mock_config):
 
 def test_140_sync_state_save_and_load(tmp_path, mock_config):
     """TEST-140: sync_state 저장·로드
-    
+
     Comprehensive test for sync state management:
     1. Save state for a table
     2. Load state and verify correctness
@@ -140,44 +140,44 @@ def test_140_sync_state_save_and_load(tmp_path, mock_config):
          patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         engine = SyncEngine(mock_config)
         state_file = tmp_path / "sync_state.json"
-        
+
         # Test 1: Save and load basic state
         engine.save_state("TABLE_A", "2024-01-01 10:00:00", file_path=str(state_file))
         loaded = engine.load_state("TABLE_A", file_path=str(state_file))
         assert loaded == "2024-01-01 10:00:00"
-        
+
         # Test 2: Update existing table state
         engine.save_state("TABLE_A", "2024-01-02 15:30:00", file_path=str(state_file))
         loaded = engine.load_state("TABLE_A", file_path=str(state_file))
         assert loaded == "2024-01-02 15:30:00"
-        
+
         # Test 3: Save state for multiple tables
         engine.save_state("TABLE_B", "2024-01-03 08:00:00", file_path=str(state_file))
         engine.save_state("TABLE_C", "2024-01-04 12:00:00", file_path=str(state_file))
-        
+
         # Verify all states are preserved
         assert engine.load_state("TABLE_A", file_path=str(state_file)) == "2024-01-02 15:30:00"
         assert engine.load_state("TABLE_B", file_path=str(state_file)) == "2024-01-03 08:00:00"
         assert engine.load_state("TABLE_C", file_path=str(state_file)) == "2024-01-04 12:00:00"
-        
+
         # Test 4: Handle non-existent table
         non_existent = engine.load_state("TABLE_D", file_path=str(state_file))
         assert non_existent is None
-        
+
         # Test 5: Handle non-existent state file
         non_existent_file = tmp_path / "does_not_exist.json"
         result = engine.load_state("TABLE_A", file_path=str(non_existent_file))
         assert result is None
-        
+
         # Test 6: Handle corrupted state file
         corrupted_file = tmp_path / "corrupted.json"
         with open(corrupted_file, "w") as f:
             f.write("{ invalid json content")
-        
+
         # Should return None without crashing
         result = engine.load_state("TABLE_A", file_path=str(corrupted_file))
         assert result is None
-        
+
         # Should be able to save after corruption
         engine.save_state("TABLE_NEW", "2024-01-05 14:00:00", file_path=str(corrupted_file))
         loaded = engine.load_state("TABLE_NEW", file_path=str(corrupted_file))
@@ -193,8 +193,8 @@ def test_073_parallel_batch_processing(mock_config):
     2. All parallel operations complete successfully
     3. No race conditions occur during concurrent operations
     """
-    from concurrent.futures import ThreadPoolExecutor
     import threading
+    from concurrent.futures import ThreadPoolExecutor
 
     # Helper class to simulate database fetch with thread-safe tracking
     class FetchSimulator:
@@ -217,7 +217,7 @@ def test_073_parallel_batch_processing(mock_config):
             if current_count % 2 == 1:
                 yield [(1, "Data"), (2, "Data")]
             # If even, yield nothing (empty generator)
-            
+
         def mark_complete(self, table_name: str):
             """Thread-safe marking of completed tables."""
             with self.lock:
@@ -285,25 +285,24 @@ def test_073_parallel_batch_processing(mock_config):
         # Let's adjust `FetchSimulator` to always yield data for this test, or match the "odd" logic if strictly needed.
         # If I want 3 tables to succeed with data, they should all get data.
         # Let's change FetchSimulator to always yield one batch.
-        
+
         assert mock_duckdb.insert_batch.call_count >= 2 # Adjusted expectation or fix simulator to be deterministic
 
 
 def test_max_iterations_configurable(mock_config):
     """API-level test: max_iterations should be configurable via Config
-    
-    This test verifies that the hardcoded max_iterations value (10000) 
+
+    This test verifies that the hardcoded max_iterations value (10000)
     can be configured through the Config object, allowing users to adjust
     the safety limit for infinite loop prevention based on their needs.
-    
+
     Defect: sync_engine.py line 249 has hardcoded max_iterations = 10000
     Expected: Should use self.config.sync_max_iterations instead
     """
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
-        
+
         # Set custom max_iterations in config
         custom_config = Config(
             oracle_host="lh", oracle_port=1521, oracle_service_name="xe",
@@ -311,16 +310,16 @@ def test_max_iterations_configurable(mock_config):
             duckdb_path=":memory:",
             sync_max_iterations=5  # Custom value instead of hardcoded 10000
         )
-        
+
         # Create a generator that yields more than 5 batches to trigger the limit
         def infinite_generator():
             for i in range(10):  # Try to yield 10 batches
                 yield [(i, f"Data{i}")]
-        
+
         mock_oracle.fetch_generator.return_value = infinite_generator()
-        
+
         engine = SyncEngine(custom_config)
-        
+
         # Should raise RuntimeError when exceeding configured max_iterations (5)
         with pytest.raises(RuntimeError, match="Exceeded maximum iterations"):
             engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)
@@ -328,37 +327,36 @@ def test_max_iterations_configurable(mock_config):
 
 def test_max_iterations_default_value(mock_config):
     """Unit test: Verify max_iterations has sensible default value
-    
+
     This test ensures that when sync_max_iterations is not explicitly set
     in Config, a reasonable default value is used (10000) that allows
     processing ~100M rows with default batch_size=10000.
     """
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
-        
+
         # Config without explicit sync_max_iterations should have default
         engine = SyncEngine(mock_config)
-        
+
         # Create generator yielding exactly 10000 batches (should succeed)
         def large_generator():
             for i in range(10000):
                 yield [(i, f"Data{i}")]
-        
+
         mock_oracle.fetch_generator.return_value = large_generator()
-        
+
         # Should NOT raise error with 10000 batches
         total = engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)
         assert total == 10000
-        
+
         # Create generator yielding 10001 batches (should fail)
         def too_large_generator():
             for i in range(10001):
                 yield [(i, f"Data{i}")]
-        
+
         mock_oracle.fetch_generator.return_value = too_large_generator()
-        
+
         # Should raise error exceeding default max_iterations
         with pytest.raises(RuntimeError, match="Exceeded maximum iterations"):
             engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1)

@@ -1,8 +1,8 @@
 """
 Oracle 데이터베이스 연결 관리 모듈
 """
-import datetime
 import os
+from typing import Optional
 
 import oracledb
 
@@ -75,10 +75,9 @@ def _ensure_oracle_client(config=None):
                 "Please set ORACLE_HOME environment variable to use thick mode for Oracle 11g/11.2 compatibility."
             )
 
-def datetime_handler(value):
-    if isinstance(value, datetime.datetime):
-        return value.isoformat()
-    return value
+# Re-export for backward compatibility
+from oracle_duckdb_sync.util.serialization import serialize_datetime as datetime_handler
+
 
 class OracleSource:
     """Oracle 데이터베이스 연결 클래스"""
@@ -92,10 +91,10 @@ class OracleSource:
         from oracle_duckdb_sync.log.logger import setup_logger
 
         self.config = config
-        self.conn = None
-        self.pool = None
-        self.cursor = None
-        self.current_query = None
+        self.conn: Optional[oracledb.Connection] = None
+        self.pool: Optional[oracledb.ConnectionPool] = None
+        self.cursor: Optional[oracledb.Cursor] = None
+        self.current_query: Optional[str] = None
         self.logger = setup_logger("OracleSource")
 
     def connect(self):

@@ -5,13 +5,16 @@ This service handles all query-related business logic without
 depending on any UI framework.
 """
 
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import pandas as pd
 
 from ..data.converter import detect_and_convert_types
 from ..database.duckdb_source import DuckDBSource
 from ..log.logger import setup_logger
+
+if TYPE_CHECKING:
+    from ..config.config import Config
 
 logger = setup_logger(__name__)
 

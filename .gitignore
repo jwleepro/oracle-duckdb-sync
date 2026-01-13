@@ -92,6 +92,7 @@ data/sync_state.json
 *.tmp
 *.temp
 ~*
+tmpclaude-*
 
 # Large files or unnecessary directories
 nul

@@ -12,7 +12,7 @@ def test_003_duckdb_import():
 
 def test_004_ui_libraries_import():
     """TEST-004: Streamlit 및 Plotly 라이브러리 임포트 확인"""
-    import streamlit
     import plotly
+    import streamlit
     assert streamlit.__version__
     assert plotly.__version__

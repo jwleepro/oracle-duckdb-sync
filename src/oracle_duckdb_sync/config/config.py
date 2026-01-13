@@ -1,5 +1,5 @@
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from dotenv import load_dotenv
 
@@ -16,7 +16,7 @@ class Config:
     duckdb_database: str = "main"
 
     # Oracle Client settings
-    oracle_client_directories: list[str] = None
+    oracle_client_directories: list[str] = field(default_factory=list)
 
     # Sync target table configuration
     sync_oracle_schema: str = ""
@@ -128,14 +128,35 @@ def load_config(load_dotenv_file: bool = True) -> Config:
             r'C:\oracle\instantclient'
         ]
 
-    return Config(
-        oracle_host=os.getenv("ORACLE_HOST"),
-        oracle_port=oracle_port,
-        oracle_service_name=os.getenv("ORACLE_SERVICE_NAME"),
-        oracle_user=os.getenv("ORACLE_USER"),
-        oracle_password=os.getenv("ORACLE_PASSWORD"),
+    # Validate required environment variables
+    oracle_host = os.getenv("ORACLE_HOST")
+    if not oracle_host:
+        raise ValueError("ORACLE_HOST environment variable is required")
 
-        duckdb_path=os.getenv("DUCKDB_PATH"),
+    oracle_service_name = os.getenv("ORACLE_SERVICE_NAME")
+    if not oracle_service_name:
+        raise ValueError("ORACLE_SERVICE_NAME environment variable is required")
+
+    oracle_user = os.getenv("ORACLE_USER")
+    if not oracle_user:
+        raise ValueError("ORACLE_USER environment variable is required")
+
+    oracle_password = os.getenv("ORACLE_PASSWORD")
+    if not oracle_password:
+        raise ValueError("ORACLE_PASSWORD environment variable is required")
+
+    duckdb_path = os.getenv("DUCKDB_PATH")
+    if not duckdb_path:
+        raise ValueError("DUCKDB_PATH environment variable is required")
+
+    return Config(
+        oracle_host=oracle_host,
+        oracle_port=oracle_port,
+        oracle_service_name=oracle_service_name,
+        oracle_user=oracle_user,
+        oracle_password=oracle_password,
+
+        duckdb_path=duckdb_path,
         duckdb_database=os.getenv("DUCKDB_DATABASE", "main"),
 
         oracle_client_directories=oracle_client_directories,

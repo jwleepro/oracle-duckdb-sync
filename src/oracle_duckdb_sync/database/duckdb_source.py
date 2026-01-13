@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import duckdb
 
@@ -13,7 +14,7 @@ class DuckDBSource:
         db_path = Path(self.config.duckdb_path)
         db_path.parent.mkdir(parents=True, exist_ok=True)
 
-        self.conn = duckdb.connect(self.config.duckdb_path)
+        self.conn: Optional[duckdb.DuckDBPyConnection] = duckdb.connect(self.config.duckdb_path)
 
     def disconnect(self):
         """Close the DuckDB connection"""
@@ -70,7 +71,7 @@ class DuckDBSource:
             return self.conn.execute(query, params).fetchall()
         return self.conn.execute(query).fetchall()
 
-    def insert_batch(self, table: str, data: list, column_names: list = None, primary_key: str = None, logger=None):
+    def insert_batch(self, table: str, data: list, column_names: Optional[list] = None, primary_key: Optional[str] = None, logger=None):
         """Insert batch of data into DuckDB table using Pandas DataFrame with UPSERT support
 
         This is 100x faster than executemany for bulk inserts.

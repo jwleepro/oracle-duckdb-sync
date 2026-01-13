@@ -1,7 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
+
+import pytest
+
 from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 
 
 @pytest.fixture
@@ -109,7 +111,7 @@ def test_041b_disconnect_cleanup(mock_config):
 
 def test_051_upsert_on_conflict_integration(mock_config):
     """TEST-051: 증분 시 중복 키에 대한 upsert 처리 (실제 DuckDB 통합 테스트)
-    
+
     이 테스트는 실제 DuckDB 인스턴스를 사용하여 UPSERT 동작을 검증합니다:
     1. PRIMARY KEY가 있는 테이블 생성
     2. 초기 데이터 삽입
@@ -118,7 +120,7 @@ def test_051_upsert_on_conflict_integration(mock_config):
     """
     # Use real DuckDB in-memory database
     source = DuckDBSource(mock_config)
-    
+
     # Create table with PRIMARY KEY
     source.conn.execute("""
         CREATE TABLE test_upsert (
@@ -127,39 +129,39 @@ def test_051_upsert_on_conflict_integration(mock_config):
             value INTEGER
         )
     """)
-    
+
     # First insert: 3 rows
     data1 = [(1, "Alice", 100), (2, "Bob", 200), (3, "Charlie", 300)]
     column_names = ["id", "name", "value"]
-    
+
     result1 = source.insert_batch("test_upsert", data1, column_names=column_names, primary_key="id")
     assert result1 == 3
-    
+
     # Verify initial data
     rows = source.conn.execute("SELECT * FROM test_upsert ORDER BY id").fetchall()
     assert len(rows) == 3
     assert rows[0] == (1, "Alice", 100)
     assert rows[1] == (2, "Bob", 200)
     assert rows[2] == (3, "Charlie", 300)
-    
+
     # Second insert: Duplicate keys (1, 2) with updated values + new key (4)
     data2 = [(1, "Alice Updated", 150), (2, "Bob Updated", 250), (4, "David", 400)]
-    
+
     result2 = source.insert_batch("test_upsert", data2, column_names=column_names, primary_key="id")
     assert result2 == 3
-    
+
     # Verify UPSERT behavior: should have 4 rows total (not 6)
     rows = source.conn.execute("SELECT * FROM test_upsert ORDER BY id").fetchall()
     assert len(rows) == 4, f"Expected 4 rows (UPSERT), but got {len(rows)}"
-    
+
     # Verify updated values for existing keys
     assert rows[0] == (1, "Alice Updated", 150), "Row 1 should be updated"
     assert rows[1] == (2, "Bob Updated", 250), "Row 2 should be updated"
-    
+
     # Verify unchanged row
     assert rows[2] == (3, "Charlie", 300), "Row 3 should remain unchanged"
-    
+
     # Verify new row
     assert rows[3] == (4, "David", 400), "Row 4 should be inserted"
-    
+
     source.disconnect()

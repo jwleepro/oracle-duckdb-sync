@@ -5,13 +5,14 @@ This test module covers the data visualization functionality including
 chart rendering and data processing for visual display.
 """
 
-import pytest
-import pandas as pd
 import numpy as np
+import pandas as pd
+import pytest
+
 from oracle_duckdb_sync.ui.visualization import (
     calculate_y_axis_range,
+    filter_dataframe_by_range,
     render_data_visualization,
-    filter_dataframe_by_range
 )
 
 
@@ -158,9 +159,9 @@ class TestFilterDataframeByRange:
             'timestamp': pd.to_datetime(['2024-01-01', '2024-01-02', '2024-01-03']),
             'value': [0.12, 0.13, 0.125]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.13)
-        
+
         assert len(filtered) == 3
         assert filtered['value'].min() >= 0.12
         assert filtered['value'].max() <= 0.13
@@ -170,9 +171,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [0.1, 0.12, 0.13, 0.15, 5.0]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.13)
-        
+
         assert len(filtered) == 2
         assert all(filtered['value'] >= 0.12)
         assert all(filtered['value'] <= 0.13)
@@ -182,9 +183,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [0.12, 0.125, 0.13, 0.15, 5.0]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.14)
-        
+
         assert len(filtered) == 3
         assert all(filtered['value'] >= 0.12)
         assert all(filtered['value'] <= 0.14)
@@ -194,9 +195,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'measurement': [0.12, 0.125, 0.13, 0.128, 5.0, 7.0, 0.121]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'measurement', 0.12, 0.13)
-        
+
         # Should exclude 5.0 and 7.0
         assert len(filtered) == 5
         assert 5.0 not in filtered['measurement'].values
@@ -207,9 +208,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [0.12, 0.125, 0.13]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.11, 0.14)
-        
+
         assert len(filtered) == len(df)
         assert filtered.equals(df)
 
@@ -218,9 +219,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [5.0, 7.0, 10.0]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.13)
-        
+
         assert len(filtered) == 0
         assert isinstance(filtered, pd.DataFrame)
 
@@ -231,9 +232,9 @@ class TestFilterDataframeByRange:
             'measurement': [0.12, 0.13, 0.5, 0.125],
             'label': ['a', 'b', 'c', 'd']
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'measurement', 0.12, 0.13)
-        
+
         assert 'timestamp' in filtered.columns
         assert 'label' in filtered.columns
         assert len(filtered) == 3
@@ -243,9 +244,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [0.12, np.nan, 0.13, 0.5, 0.125]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.13)
-        
+
         # NaN should be excluded
         assert len(filtered) == 3
         assert filtered['value'].isna().sum() == 0
@@ -255,9 +256,9 @@ class TestFilterDataframeByRange:
         df = pd.DataFrame({
             'value': [0.11, 0.12, 0.125, 0.13, 0.14]
         })
-        
+
         filtered = filter_dataframe_by_range(df, 'value', 0.12, 0.13)
-        
+
         assert 0.12 in filtered['value'].values
         assert 0.13 in filtered['value'].values
         assert 0.11 not in filtered['value'].values
@@ -314,7 +315,7 @@ class TestYAxisRangeAfterFiltering:
         # Expected: min=0.12, max=7.0, range=6.88, padding=0.344
         # y_min = 0.12 - 0.344 = -0.224, y_max = 7.0 + 0.344 = 7.344
         expected_range = 7.0 - 0.12
-        expected_padding = expected_range * 0.05
+        expected_range * 0.05
 
         # This shows the problem: Y-axis range is too large
         assert y_max > 7.0

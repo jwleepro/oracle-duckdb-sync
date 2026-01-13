@@ -1,33 +1,35 @@
-import pytest
 import logging
 import os
+
 from oracle_duckdb_sync.log.logger import setup_logger
+
 
 def test_100_logger_initialization():
     """TEST-100: 로거 초기화 및 파일 기록 확인"""
     log_file = "test_sync.log"
     if os.path.exists(log_file):
         os.remove(log_file)
-        
+
     logger = setup_logger("test_logger", log_file)
     logger.info("Test message")
-    
+
     # 핸들러 닫기 (파일 읽기를 위해)
     for handler in logger.handlers:
         handler.close()
-        
+
     assert os.path.exists(log_file)
-    with open(log_file, "r") as f:
+    with open(log_file) as f:
         content = f.read()
         assert "Test message" in content
-    
+
     os.remove(log_file)
 
 def test_101_stats_logging(tmp_path):
     """TEST-101: 처리 건수·지연 시간 통계 기록"""
-    from unittest.mock import patch, MagicMock
+    from unittest.mock import patch
+
+    from oracle_duckdb_sync.config import Config
     from oracle_duckdb_sync.database.sync_engine import SyncEngine
-    from oracle_duckdb_sync.config import Config    
 
     log_file = tmp_path / "stats.log"
 
@@ -38,7 +40,7 @@ def test_101_stats_logging(tmp_path):
     )
 
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
         # Mock fetch_generator to yield one batch of 100 rows
         mock_oracle.fetch_generator.return_value = iter([[(i,) for i in range(100)]])
@@ -47,7 +49,7 @@ def test_101_stats_logging(tmp_path):
         engine.logger = setup_logger("sync_stats", str(log_file))
 
         # Execute sync
-        total = engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1000)
+        engine.sync_in_batches("O_TABLE", "D_TABLE", batch_size=1000)
 
         # Close handlers to flush logs
         for handler in engine.logger.handlers:
@@ -76,11 +78,11 @@ def test_103_batch_index_statistics(tmp_path):
     3. Per-batch timing information is recorded
     4. Statistics are displayed in a clear, readable format
     """
-    from unittest.mock import patch
-    from oracle_duckdb_sync.database.sync_engine import SyncEngine
-    from oracle_duckdb_sync.config import Config
     import re
-    import logging
+    from unittest.mock import patch
+
+    from oracle_duckdb_sync.config import Config
+    from oracle_duckdb_sync.database.sync_engine import SyncEngine
 
     log_file = tmp_path / "batch_stats.log"
 
@@ -91,10 +93,9 @@ def test_103_batch_index_statistics(tmp_path):
     )
 
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
 
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
 
         # Simulate 3 batches of data
         mock_oracle.fetch_generator.return_value = iter([

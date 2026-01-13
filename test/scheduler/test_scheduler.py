@@ -1,7 +1,9 @@
-import pytest
-from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.scheduler.scheduler import SyncScheduler
+from unittest.mock import patch
+
 from apscheduler.triggers.cron import CronTrigger
+
+from oracle_duckdb_sync.scheduler.scheduler import SyncScheduler
+
 
 def test_110_scheduler_setup():
     """TEST-110: 스케줄러 등록 확인"""
@@ -25,7 +27,6 @@ def test_111_duplicate_execution_prevention():
     import time
 
     execution_count = []
-    lock_acquired = []
 
     def sync_job():
         """Simulated sync job that tracks execution"""
@@ -53,7 +54,6 @@ def test_111_duplicate_execution_prevention():
 
 def test_112_safe_scheduler_restart():
     """TEST-112: 스케줄 재등록/중단 시 안전 처리"""
-    import time
 
     scheduler = SyncScheduler()
     job_executed = []

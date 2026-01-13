@@ -1,8 +1,10 @@
-import pytest
 import time
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.database.sync_engine import SyncEngine
+
+import pytest
+
 from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.database.sync_engine import SyncEngine
 
 
 @pytest.fixture
@@ -17,9 +19,8 @@ def mock_config():
 def test_sync_engine_max_iterations():
     """Verify sync terminates after max iterations to prevent infinite loops"""
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
 
         # Simulate infinite loop: always yield a batch
         def infinite_generator(*args, **kwargs):
@@ -44,9 +45,8 @@ def test_sync_engine_max_iterations():
 def test_sync_engine_timeout():
     """Verify sync terminates after max duration"""
     with patch("oracle_duckdb_sync.database.sync_engine.OracleSource") as mock_oracle_cls, \
-         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource") as mock_duckdb_cls:
+         patch("oracle_duckdb_sync.database.sync_engine.DuckDBSource"):
         mock_oracle = mock_oracle_cls.return_value
-        mock_duckdb = mock_duckdb_cls.return_value
 
         # Simulate slow operation that exceeds timeout
         def slow_generator(*args, **kwargs):
@@ -72,8 +72,8 @@ def test_sync_engine_timeout():
 
 def test_duckdb_connection_cleanup():
     """Verify DuckDB connection is closed properly"""
-    from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
     from oracle_duckdb_sync.config import Config
+    from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 
     with patch("oracle_duckdb_sync.database.duckdb_source.duckdb") as mock_duckdb:
         mock_conn = mock_duckdb.connect.return_value
@@ -94,8 +94,8 @@ def test_duckdb_connection_cleanup():
 
 def test_oracle_cursor_cleanup_on_exception():
     """Verify cursor is closed even when execute() fails"""
-    from oracle_duckdb_sync.database.oracle_source import OracleSource
     from oracle_duckdb_sync.config import Config
+    from oracle_duckdb_sync.database.oracle_source import OracleSource
 
     with patch("oracledb.connect") as mock_connect:
         mock_conn = mock_connect.return_value
@@ -124,9 +124,10 @@ def test_oracle_cursor_cleanup_on_exception():
 
 def test_logger_handler_cleanup():
     """Verify file handlers are closed and not accumulated"""
-    from oracle_duckdb_sync.log.logger import setup_logger, cleanup_logger
-    import tempfile
     import os
+    import tempfile
+
+    from oracle_duckdb_sync.log.logger import cleanup_logger, setup_logger
 
     # Use temporary file for test
     with tempfile.NamedTemporaryFile(mode='w', delete=False, suffix='.log') as tmp:

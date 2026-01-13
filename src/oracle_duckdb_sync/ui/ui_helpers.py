@@ -130,7 +130,7 @@ def show_conversion_results(conversions: dict[str, Any], adapter: StreamlitAdapt
         st.text("\n".join(conversion_details))
 
 
-def get_preset_date_range(preset: str, base_date: datetime = None) -> Optional[tuple[datetime, datetime]]:
+def get_preset_date_range(preset: str, base_date: Optional[datetime] = None) -> Optional[tuple[datetime, datetime]]:
     """
     Get date range based on preset period selection.
 

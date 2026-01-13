@@ -12,7 +12,7 @@ def test_001_imports():
     """TEST-001~004: pytest 기본 실행 및 주요 모듈 import 확인"""
     errors = []
     success = []
-    
+
     test_cases = [
         ("DuckDBSource", "from oracle_duckdb_sync.database.duckdb_source import DuckDBSource"),
         ("OracleSource", "from oracle_duckdb_sync.database.oracle_source import OracleSource"),
@@ -29,9 +29,9 @@ def test_001_imports():
         ("SessionState", "from oracle_duckdb_sync.ui.session_state import initialize_session_state"),
         ("Visualization", "from oracle_duckdb_sync.ui.visualization import render_data_visualization"),
     ]
-    
+
     print("Testing module imports...\n")
-    
+
     for name, import_stmt in test_cases:
         try:
             exec(import_stmt)
@@ -40,11 +40,11 @@ def test_001_imports():
         except Exception as e:
             errors.append((name, str(e)))
             print(f"✗ {name}: {e}")
-    
+
     print(f"\n{'='*60}")
     print(f"Results: {len(success)} OK, {len(errors)} ERRORS")
     print(f"{'='*60}\n")
-    
+
     if errors:
         print("IMPORT ERRORS:\n")
         for name, error in errors:
@@ -53,7 +53,7 @@ def test_001_imports():
         return 1
     else:
         print("✓ All imports successful!")
-        
+
         # Test DuckDBSource has get_connection method
         print("\nTesting DuckDBSource.get_connection() method...")
         from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
@@ -62,7 +62,7 @@ def test_001_imports():
         else:
             print("✗ DuckDBSource.get_connection() method NOT FOUND")
             return 1
-            
+
         return 0
 
 if __name__ == '__main__':

@@ -1,8 +1,11 @@
-import pytest
 import datetime
 from unittest.mock import MagicMock, patch
-from oracle_duckdb_sync.database.oracle_source import OracleSource, datetime_handler
+
+import pytest
+
 from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.database.oracle_source import OracleSource, datetime_handler
+
 
 @pytest.fixture
 def mock_config():
@@ -45,17 +48,17 @@ def test_022_oracle_pool_initialization(mock_config):
     with patch("oracledb.create_pool") as mock_create_pool:
         source = OracleSource(mock_config)
         source.init_pool(min_conn=1, max_conn=5)
-        
+
         # Verify create_pool was called once
         mock_create_pool.assert_called_once()
-        
+
         # Verify pool parameters are correct
         call_kwargs = mock_create_pool.call_args[1]
         assert call_kwargs["min"] == 1, "min_conn should be 1"
         assert call_kwargs["max"] == 5, "max_conn should be 5"
         assert call_kwargs["user"] == mock_config.oracle_user
         assert call_kwargs["password"] == mock_config.oracle_password
-        
+
         # Verify DSN is correctly formatted
         expected_dsn = f"{mock_config.oracle_host}:{mock_config.oracle_port}/{mock_config.oracle_service_name}"
         assert call_kwargs["dsn"] == expected_dsn
@@ -67,14 +70,14 @@ def test_030_fetch_all_data(mock_config):
         mock_cursor = MagicMock()
         mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
         mock_cursor.fetchall.return_value = [(1, "data1"), (2, "data2")]
-        
+
         source = OracleSource(mock_config)
         source.connect()
         data = source.fetch_all("SELECT * FROM table")
-        
+
         # Verify row count
         assert len(data) == 2
-        
+
         # Verify actual data content
         assert data[0] == (1, "data1"), "First row should be (1, 'data1')"
         assert data[1] == (2, "data2"), "Second row should be (2, 'data2')"
@@ -90,13 +93,13 @@ def test_031_fetch_batch_data(mock_config):
         source = OracleSource(mock_config)
         source.connect()
         data = source.fetch_batch("SELECT * FROM table", batch_size=1)
-        
+
         # Verify row count
         assert len(data) == 1
-        
+
         # Verify actual data content
         assert data[0] == (1, "data1"), "First row should be (1, 'data1')"
-        
+
         # Verify cursor was created and execute was called
         mock_conn.cursor.assert_called_once()
         mock_cursor.execute.assert_called_once_with("SELECT * FROM table")

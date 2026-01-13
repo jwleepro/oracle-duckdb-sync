@@ -15,44 +15,44 @@ logger = setup_logger(__name__)
 
 def main():
     config = load_config()
-    
+
     try:
         oracle = OracleSource(config)
         oracle.connect()
         cursor = oracle.conn.cursor()
-        
+
         # MESMGR 스키마로 접근
         logger.info("=== MESMGR.CRASIVTTST 접근 시도 ===")
         cursor.execute("SELECT COUNT(*) FROM MESMGR.CRASIVTTST")
         count = cursor.fetchone()[0]
         logger.info(f"MESMGR.CRASIVTTST 총 행 수: {count:,}")
-        
+
         # 최근 데이터 확인
         cursor.execute("""
             SELECT MAX(TRAN_TIME) FROM MESMGR.CRASIVTTST
         """)
         max_time = cursor.fetchone()[0]
         logger.info(f"Oracle 최대 TRAN_TIME: {max_time}")
-        
+
         # DuckDB 최대 시간과 비교
         logger.info("\n=== DuckDB와 비교 ===")
-        logger.info(f"DuckDB 최대 TRAN_TIME: 20251231161436")
-        
+        logger.info("DuckDB 최대 TRAN_TIME: 20251231161436")
+
         # Oracle에서 DuckDB 이후 데이터 확인
         cursor.execute("""
-            SELECT COUNT(*) FROM MESMGR.CRASIVTTST 
+            SELECT COUNT(*) FROM MESMGR.CRASIVTTST
             WHERE TRAN_TIME > '20251231161436'
         """)
         new_count = cursor.fetchone()[0]
         logger.info(f"DuckDB 이후 신규 데이터: {new_count:,} rows")
-        
+
         cursor.close()
         oracle.disconnect()
-        
+
     except Exception as e:
         logger.error(f"에러: {e}", exc_info=True)
         return 1
-    
+
     return 0
 
 if __name__ == "__main__":

@@ -1,4 +1,5 @@
 import time
+from typing import Optional
 
 from oracle_duckdb_sync.config import Config
 from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
@@ -176,7 +177,7 @@ class SyncEngine:
         self.logger.info(f"Starting test sync from {oracle_table_name} to {duckdb_table} (limit: {row_limit} rows)")
         return self._execute_limited_sync(oracle_table_name, duckdb_table, row_limit, duckdb_columns, batch_size=self.config.sync_batch_size)
 
-    def incremental_sync(self, oracle_table_name: str, duckdb_table: str, column: str, last_value: str, primary_key: str = None, retries: int = None):
+    def incremental_sync(self, oracle_table_name: str, duckdb_table: str, column: str, last_value: str, primary_key: Optional[str] = None, retries: Optional[int] = None):
         """Perform incremental synchronization from Oracle to DuckDB
 
         Incremental sync uses INSERT only (no UPSERT) because:
@@ -229,9 +230,11 @@ class SyncEngine:
 
         # If all retries failed, do NOT save state
         self.logger.error(f"Incremental sync failed after {retries} attempts. State NOT updated.")
-        raise last_exception
+        if last_exception:
+            raise last_exception
+        raise RuntimeError(f"Incremental sync failed after {retries} attempts")
 
-    def sync_in_batches(self, oracle_table_name: str, duckdb_table: str, batch_size: int = None, max_duration: int = None):
+    def sync_in_batches(self, oracle_table_name: str, duckdb_table: str, batch_size: Optional[int] = None, max_duration: Optional[int] = None):
         if batch_size is None:
             batch_size = self.config.sync_batch_size
         if max_duration is None:
@@ -239,7 +242,7 @@ class SyncEngine:
         query = f"SELECT * FROM {oracle_table_name}"
         return self._execute_sync(query, duckdb_table, batch_size, max_duration)
 
-    def _execute_sync(self, query: str, duckdb_table: str, batch_size: int = None, max_duration: int = None, primary_key: str = None):
+    def _execute_sync(self, query: str, duckdb_table: str, batch_size: Optional[int] = None, max_duration: Optional[int] = None, primary_key: Optional[str] = None):
         """Execute sync query with optional UPSERT support
 
         Args:
@@ -499,7 +502,7 @@ class SyncEngine:
         # Oracle requires subquery for proper ROWNUM limiting
         return f"SELECT * FROM (SELECT * FROM {oracle_table}) WHERE ROWNUM <= {row_limit}"
 
-    def _execute_limited_sync(self, oracle_table: str, duckdb_table: str, row_limit: int, duckdb_columns: list, batch_size: int = None, max_duration: int = None):
+    def _execute_limited_sync(self, oracle_table: str, duckdb_table: str, row_limit: int, duckdb_columns: list, batch_size: Optional[int] = None, max_duration: Optional[int] = None):
         """Execute sync with strict row limit enforcement
 
         Args:
@@ -562,7 +565,7 @@ class SyncEngine:
             f"Sync progress - Table: {table}, Total rows: {total_count}, Batch size: {batch_count}"
         )
 
-    def save_state(self, table_name: str, last_value: str, file_path: str = None):
+    def save_state(self, table_name: str, last_value: str, file_path: Optional[str] = None):
         """Save sync state for a table using StateFileManager"""
         if file_path is None:
             file_path = self.config.sync_state_path
@@ -575,7 +578,7 @@ class SyncEngine:
         # Save updated state
         self.state_manager.save_json(file_path, state)
 
-    def load_state(self, table_name: str, file_path: str = None) -> str:
+    def load_state(self, table_name: str, file_path: Optional[str] = None) -> Optional[str]:
         """Load sync state for a table using StateFileManager"""
         if file_path is None:
             file_path = self.config.sync_state_path
@@ -583,7 +586,7 @@ class SyncEngine:
         return state.get(table_name)
 
 
-    def save_schema_mapping(self, table_name: str, schema: dict, version: str, file_path: str = None):
+    def save_schema_mapping(self, table_name: str, schema: dict, version: str, file_path: Optional[str] = None):
         """Save schema mapping configuration with version tracking
 
         Args:
@@ -614,7 +617,7 @@ class SyncEngine:
         # Write to file
         self.state_manager.save_json(file_path, mappings)
 
-    def load_schema_mapping(self, table_name: str, version: str = None, file_path: str = None) -> dict:
+    def load_schema_mapping(self, table_name: str, version: Optional[str] = None, file_path: Optional[str] = None) -> dict:
         """Load schema mapping configuration
 
         Args:

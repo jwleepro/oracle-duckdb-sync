@@ -70,8 +70,8 @@ def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) 
     if len(y_values) == 0:
         return None, None
 
-    y_min = np.min(y_values)
-    y_max = np.max(y_values)
+    y_min: float = float(np.min(y_values))
+    y_max: float = float(np.max(y_values))
 
     # Add padding for better visualization
     y_range = y_max - y_min
@@ -87,7 +87,7 @@ def calculate_y_axis_range(y_values: np.ndarray, padding_percent: float = 0.05) 
     return y_axis_min, y_axis_max
 
 
-def _detect_datetime_columns(df: pd.DataFrame) -> list:
+def _detect_datetime_columns(df: pd.DataFrame) -> list[str]:
     """
     Detect datetime columns in DataFrame.
 
@@ -97,10 +97,10 @@ def _detect_datetime_columns(df: pd.DataFrame) -> list:
     Returns:
         List of datetime column names
     """
-    return df.select_dtypes(include=['datetime64']).columns.tolist()
+    return list(df.select_dtypes(include=['datetime64']).columns)
 
 
-def _detect_numeric_columns(df: pd.DataFrame) -> list:
+def _detect_numeric_columns(df: pd.DataFrame) -> list[str]:
     """
     Detect numeric columns in DataFrame.
 
@@ -110,7 +110,7 @@ def _detect_numeric_columns(df: pd.DataFrame) -> list:
     Returns:
         List of numeric column names
     """
-    return df.select_dtypes(include=['number']).columns.tolist()
+    return list(df.select_dtypes(include=['number']).columns)
 
 
 def filter_dataframe_by_range(df: pd.DataFrame, column: str, min_value: float, max_value: float) -> pd.DataFrame:
@@ -212,14 +212,14 @@ def render_data_visualization(
             available_y_cols = [col for col in numeric_cols if col != x_col]
 
             if available_y_cols:
-                y_cols = st.multiselect(
+                y_cols: list[str] = st.multiselect(
                     "Y축 (숫자 컬럼)",
                     options=available_y_cols,
                     default=[],  # No columns selected by default
                     help="차트에 표시할 숫자 컬럼을 선택하세요 (복수 선택 가능)"
                 )
             else:
-                y_cols = []
+                y_cols: list[str] = []
                 st.warning("시각화할 숫자형 컬럼이 없습니다.")
         else:
             y_cols = []
@@ -418,8 +418,8 @@ LTTB_THRESHOLD = 5000
 def _prepare_plot_dataframe(
     df: pd.DataFrame,
     numeric_cols: list,
-    x_col: str = None,
-    y_cols: list = None,
+    x_col: Optional[str] = None,
+    y_cols: Optional[list] = None,
     downsample_threshold: int = LTTB_THRESHOLD
 ) -> pd.DataFrame:
     """
@@ -470,7 +470,7 @@ def _create_and_display_chart(
     y_cols: list,
     numeric_cols: list,
     table_name: str,
-    filtered_column: str = None
+    filtered_column: Optional[str] = None
 ):
     """
     Create and display Plotly chart.

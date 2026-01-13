@@ -4,312 +4,286 @@
 
 본 프로젝트는 Oracle 11g 데이터베이스에 저장된 대량의 시계열/이력 데이터를 DuckDB로 고속 동기화하고, 웹 기반으로 데이터를 시각화 및 분석하는 시스템입니다. 기존 Oracle의 느린 조회 성능 문제를 해결하고, 사용자에게 직관적인 데이터 분석 환경을 제공하는 것을 목표로 합니다.
 
+### 주요 기능
+
+| 기능 | 설명 |
+|------|------|
+| **데이터 동기화** | Oracle → DuckDB 전체/증분 동기화 |
+| **웹 시각화** | Streamlit 기반 대시보드 |
+| **AI Agent** | 자연어로 동기화/조회 작업 수행 (GPT-4o-mini) |
+
 ## 2. 프로젝트 구조
-
-**주요 설계 원칙** (✅ 구현 완료):
-
-1. **관심사 분리**: UI, 비즈니스 로직, 데이터 접근이 명확히 분리됨
-   - ✅ UI Layer: Streamlit 전용 코드 (`ui/`)
-   - ✅ Application Layer: UI 독립적 비즈니스 로직 (`application/`)
-   - ✅ Data Layer: 순수 데이터 접근 (`data/query_core.py`)
-
-2. **의존성 역전**: Application Layer는 UI 프레임워크에 의존하지 않음
-   - ✅ `CacheProvider` 추상 인터페이스로 캐싱 독립성 달성
-   - ✅ `QueryService`가 UI 대신 추상 인터페이스에 의존
-
-3. **프레임워크 독립성**: Streamlit을 다른 UI로 쉽게 교체 가능
-   - ✅ Adapter 패턴으로 UI 프레임워크 교체 15분 소요
-   - ✅ 비즈니스 로직 100% 재사용 가능
-
-4. **테스트 용이성**: 각 레이어를 독립적으로 테스트 가능
-   - ✅ 25개 테스트 모두 통과 (Cache: 14개, QueryService: 11개)
-   - ✅ UI 없이 비즈니스 로직 테스트 가능
-
-**구현 성과**:
-- 📊 UI 전환 시간: 수일 → **15분** (99% 감소)
-- 📊 코드 재사용률: 0% → **100%**
-- 📊 테스트 커버리지: 낮음 → **높음** (25개 테스트)
-
-자세한 내용은 다음 문서 참조:
-- [docs/archive/ui_separation_architecture.md](docs/archive/ui_separation_architecture.md): 전체 아키텍처 가이드
-- [docs/archive/IMPLEMENTATION_PHASE1_COMPLETE.md](docs/archive/IMPLEMENTATION_PHASE1_COMPLETE.md): 구현 완료 1 요약
-- [docs/archive/IMPLEMENTATION_PHASE2_COMPLETE.md](docs/archive/IMPLEMENTATION_PHASE2_COMPLETE.md): 구현 완료 2 요약
-
 
 ### 2-1. 아키텍처 레이어
 
 ```
 ┌─────────────────────────────────────┐
 │   Presentation Layer                │
-│   - Streamlit UI (현재)             │
-│   - Flask/FastAPI (미래 가능)       │
+│   - Streamlit Dashboard (ui/)       │
+│   - AI Agent Chat (ui/pages/)       │
 └─────────────────────────────────────┘
            ↓ uses
 ┌─────────────────────────────────────┐
-│   Adapters                          │
-│   - StreamlitAdapter                │
-│   - (다른 프레임워크 쉽게 추가 가능) │
+│   AI Agent Layer                    │
+│   - SyncAgent (ReAct 패턴)          │
+│   - Tool Registry                   │
+│   - LLM Client (OpenAI)             │
 └─────────────────────────────────────┘
-           ↓ implements
+           ↓ uses
 ┌─────────────────────────────────────┐
 │   Application Services              │
 │   - QueryService                    │
 │   - SyncService                     │
-│   - UI Presenter Interface          │
 └─────────────────────────────────────┘
            ↓ uses
 ┌─────────────────────────────────────┐
 │   Domain/Data Layer                 │
-│   - query_core (UI 독립적)          │
-│   - DuckDBSource                    │
+│   - DuckDBSource / OracleSource     │
 │   - SyncEngine                      │
 └─────────────────────────────────────┘
 ```
 
 ### 2-2. 디렉토리 구조
 
-프로젝트는 Clean Architecture 패턴을 따라 레이어별로 구성되어 있습니다:
-
 ```
 src/oracle_duckdb_sync/
-├── config.py, logger.py          # 루트: 공통 설정 및 로거
+├── config/                           # 환경 설정
+│   └── config.py                     # 설정 로더
 │
-├── application/                   # 🆕 Application Service Layer (비즈니스 로직)
-│   ├── cache_provider.py         # 🆕 캐싱 추상 인터페이스 (UI 독립적)
-│   ├── ui_presenter.py           # UI 프레임워크 추상 인터페이스
-│   ├── query_service.py          # 🆕 데이터 조회 서비스 (UI 독립적, 집계 쿼리 지원)
-│   └── sync_service.py           # 동기화 서비스 (UI 독립적)
+├── agent/                            # AI Agent Layer
+│   ├── __init__.py
+│   ├── factory.py                    # AgentFactory (의존성 주입)
+│   ├── core/
+│   │   ├── agent.py                  # SyncAgent (ReAct 패턴)
+│   │   ├── llm_client.py             # OpenAI API 클라이언트
+│   │   └── conversation.py           # 대화 히스토리 관리
+│   └── tools/
+│       ├── base.py                   # BaseTool, ToolResult
+│       ├── registry.py               # ToolRegistry
+│       ├── sync_tools.py             # StartSyncTool, GetSyncStatusTool
+│       └── query_tools.py            # ListTablesTool, GetTableStatsTool, QueryTableTool
 │
-├── adapters/                      # 🆕 Framework Adapters (구현체)
-│   ├── streamlit_adapter.py      # Streamlit UI 구현
-│   └── streamlit_cache.py        # 🆕 Streamlit 캐싱 구현
+├── application/                      # Application Service Layer
+│   ├── cache_provider.py             # 캐싱 추상 인터페이스
+│   ├── query_service.py              # 데이터 조회 서비스
+│   ├── sync_service.py               # 동기화 서비스
+│   └── ui_presenter.py               # UI 표시 추상 인터페이스
 │
-├── ui/                            # Presentation Layer (Streamlit UI)
-│   ├── app.py                     # 🆕 메인 Streamlit 앱 (Service Layer 사용)
-│   ├── handlers.py                # UI 이벤트 핸들러
-│   ├── session_state.py           # Streamlit 세션 상태 관리
-│   └── visualization.py           # 데이터 시각화
+├── adapters/                         # Framework Adapters
+│   ├── streamlit_adapter.py          # Streamlit UI 구현
+│   └── streamlit_cache.py            # Streamlit 캐싱 구현
 │
-├── database/                      # Data Access Layer
-│   ├── oracle_source.py           # Oracle 연결
-│   ├── duckdb_source.py           # DuckDB 연결
-│   └── sync_engine.py             # 동기화 엔진
+├── ui/                               # Presentation Layer
+│   ├── app.py                        # 메인 대시보드
+│   ├── pages/
+│   │   └── agent_chat.py             # AI Agent 채팅 UI
+│   ├── handlers.py                   # UI 이벤트 핸들러
+│   ├── session_state.py              # 세션 상태 관리
+│   ├── ui_helpers.py                 # UI 헬퍼 함수
+│   └── visualization.py              # 데이터 시각화
 │
-├── scheduler/                     # Background Tasks
-│   ├── scheduler.py               # 작업 스케줄러
-│   └── sync_worker.py             # 백그라운드 워커
+├── database/                         # Data Access Layer
+│   ├── oracle_source.py              # Oracle 연결
+│   ├── duckdb_source.py              # DuckDB 연결
+│   └── sync_engine.py                # 동기화 엔진
 │
-├── data/                          # Data Processing Layer
-│   ├── query_core.py              # 🆕 UI 독립적 쿼리 함수
-│   ├── query.py                   # 레거시 쿼리 (backward compatibility)
-│   ├── converter.py               # 타입 변환
-│   └── lttb.py                    # LTTB 다운샘플링
+├── data/                             # Data Processing
+│   ├── query_core.py                 # UI 독립적 쿼리 함수
+│   ├── converter.py                  # 데이터 변환 유틸리티
+│   └── lttb.py                       # LTTB 다운샘플링
 │
-└── state/                         # State Management
-    ├── sync_state.py              # 동기화 상태 및 락
-    └── file_manager.py            # 파일 I/O 관리
+├── state/                            # 상태 관리
+│   ├── sync_state.py                 # 동기화 상태 관리
+│   └── file_manager.py               # 파일 기반 상태 저장
+│
+├── scheduler/                        # 스케줄러
+│   ├── scheduler.py                  # APScheduler 래퍼
+│   └── sync_worker.py                # 백그라운드 동기화 워커
+│
+├── util/                             # 유틸리티
+│   └── check_versions.py             # 버전 확인
+│
+└── log/
+    └── logger.py                     # 로깅 유틸리티
 ```
 
-**🆕 최근 추가된 주요 컴포넌트**:
-- `application/cache_provider.py`: UI 프레임워크 독립적 캐싱 인터페이스
-- `adapters/streamlit_cache.py`: Streamlit 전용 캐싱 구현
-- `application/query_service.py`: 집계 쿼리 및 타입 변환 지원 강화
-
-
 ### 2-3. Import 방법
-새로운 코드 작성 시 다음과 같이 import하세요:
 
 ```python
-# 🆕 Cache Provider (UI 독립적 캐싱)
-from oracle_duckdb_sync.application.cache_provider import CacheProvider
-from oracle_duckdb_sync.adapters.streamlit_cache import StreamlitCacheProvider
+# AI Agent
+from oracle_duckdb_sync.agent import SyncAgent, AgentFactory, LLMConfig
+from oracle_duckdb_sync.agent.tools import (
+    StartSyncTool, GetSyncStatusTool,
+    ListTablesTool, GetTableStatsTool, QueryTableTool
+)
 
-# 🆕 Application Services (UI 독립적 비즈니스 로직)
+# Application Services
 from oracle_duckdb_sync.application.query_service import QueryService
 from oracle_duckdb_sync.application.sync_service import SyncService
 
-# 🆕 UI Adapters (프레임워크 구현체)
-from oracle_duckdb_sync.adapters.streamlit_adapter import StreamlitAdapter
-
-# Data Layer (UI 독립적 데이터 접근)
-from oracle_duckdb_sync.data.query_core import (
-    get_available_tables,
-    query_table_with_conversion,
-    query_table_aggregated
-)
+# Data Layer
+from oracle_duckdb_sync.database.duckdb_source import DuckDBSource
 from oracle_duckdb_sync.database.sync_engine import SyncEngine
-
-# UI Layer (Streamlit 전용)
-from oracle_duckdb_sync.ui.handlers import handle_test_sync
-from oracle_duckdb_sync.ui.visualization import render_data_visualization
-
-# 하위 호환성: 기존 레거시 코드도 동작
-from oracle_duckdb_sync.data.query import query_duckdb_table  # deprecated
 ```
 
-**사용 예시**:
+**Agent 사용 예시**:
 
 ```python
-# 1. Service Layer 사용 (권장)
-from oracle_duckdb_sync.application.query_service import QueryService
+from oracle_duckdb_sync.agent import AgentFactory
+from oracle_duckdb_sync.agent.core.llm_client import LLMConfig
+from oracle_duckdb_sync.config import load_config
 
-duckdb = DuckDBSource(config)
-query_service = QueryService(duckdb)
+# Agent 생성
+config = load_config()
+llm_config = LLMConfig(model="gpt-4o-mini")
+agent = AgentFactory.create_agent(config, llm_config)
 
-# 테이블 조회
-result = query_service.query_table('my_table', limit=1000)
-if result.success:
-    df = result.data
-
-# 집계 쿼리
-agg_result = query_service.query_table_aggregated_legacy(
-    table_name='my_table',
-    time_column='timestamp',
-    interval='10 minutes'
-)
-
-# 2. Cache Provider 사용
-from oracle_duckdb_sync.adapters.streamlit_cache import StreamlitCacheProvider
-
-cache_provider = StreamlitCacheProvider()
-cache_provider.set('key', 'value')
-value = cache_provider.get('key')
+# 자연어로 작업 수행
+response = agent.process_message("USERS 테이블 동기화 해줘")
+print(response.message)
 ```
 
+## 3. 환경 설정
 
-## 3. 환경 설정 (Configuration)
-
-### 3.1 로컬 개발 환경 설정
-
-**1단계: 환경 변수 파일 생성**
-
-`.env.example` 파일을 `.env`로 복사:
+### 3.1 설치
 
 ```bash
-# Windows PowerShell/CMD
-copy .env.example .env
+# 의존성 설치
+pip install -e .
 
-# Linux/Mac
-cp .env.example .env
+# 개발 도구 포함 설치 (ruff, mypy, pytest-cov)
+pip install -e ".[dev]"
+
+# 환경 변수 파일 생성
+copy .env.example .env  # Windows
+cp .env.example .env    # Linux/Mac
 ```
 
-**2단계: 실제 데이터베이스 접속 정보 입력**
+### 3.2 환경 변수 설정
 
-`.env` 파일을 텍스트 에디터로 열어 실제 값으로 교체:
+`.env` 파일을 편집하여 실제 값을 입력하세요:
 
-**Oracle 연결 정보:**
-- `ORACLE_HOST`: Oracle 서버 주소
-- `ORACLE_PORT`: Oracle 포트 (기본값: 1521)
-- `ORACLE_SERVICE_NAME`: Oracle 서비스 이름
-- `ORACLE_USER`, `ORACLE_PASSWORD`: Oracle 계정 정보
-
-**DuckDB 설정:**
-- `DUCKDB_PATH`: DuckDB 파일 경로 (기본값: ./data/sync.duckdb)
-- `DUCKDB_DATABASE`: DuckDB 데이터베이스 이름 (기본값: main)
-
-**동기화 대상 테이블 설정:**
-- `SYNC_ORACLE_TABLE`: 동기화할 Oracle 원본 테이블명 (필수)
-- `SYNC_DUCKDB_TABLE`: DuckDB 대상 테이블명 (선택, 비워두면 Oracle 테이블명을 소문자로 사용)
-- `SYNC_PRIMARY_KEY`: Oracle 원본 테이블의 Primary Key 컬럼명. Primary Key가 Composite Key인 경우 콤마로 표현
-- `SYNC_TIME_COLUMN`: 증분 동기화용 Oracle 원본 테이블의 시간 컬럼명. Composite NON UNIQUE INDEX인 경우 콤마로 표현
-- `DUCKDB_TIME_COLUMN`: DuckDB 쿼리(집계, 시각화)에 사용할 시간 컬럼명 (설정하지 않으면 SYNC_TIME_COLUMN의 첫 번째 컬럼 사용)
-  - **권장**: Oracle 스키마 정의와 DuckDB 쿼리 레이어를 분리하기 위해 명시적으로 설정
-
-**예시:**
+**Oracle 연결:**
 ```env
-ORACLE_HOST=mydb.company.com
+ORACLE_HOST=your-oracle-host
 ORACLE_PORT=1521
 ORACLE_SERVICE_NAME=PROD
 ORACLE_USER=sync_user
-ORACLE_PASSWORD=SecureP@ssw0rd
+ORACLE_PASSWORD=your-password
+```
 
+**DuckDB 설정:**
+```env
 DUCKDB_PATH=./data/sync.duckdb
+DUCKDB_LOCK_FILE=./data/sync.lock
 DUCKDB_DATABASE=main
+```
 
-SYNC_ORACLE_TABLE=TRANSACTION_LOG
-SYNC_DUCKDB_TABLE=transaction_log
-SYNC_PRIMARY_KEY=TRANS_ID
+**동기화 대상 테이블:**
+```env
+SYNC_ORACLE_SCHEMA=SCHEMA_NAME
+SYNC_ORACLE_TABLE=TABLE_NAME
+SYNC_DUCKDB_TABLE=table_name
+SYNC_PRIMARY_KEY=ID
+# 증분 동기화용 Oracle 시간 컬럼 (복합 인덱스인 경우 쉼표로 구분)
 SYNC_TIME_COLUMN=FACTORY, TRAN_TIME
+# DuckDB 쿼리용 시간 컬럼 (설정하지 않으면 SYNC_TIME_COLUMN의 첫 번째 컬럼 사용)
 DUCKDB_TIME_COLUMN=TRAN_TIME
 ```
 
-**3단계: 설정 확인**
-
-```bash
-# 설정이 제대로 로드되는지 테스트
-pytest test/test_config.py -v
+**OpenAI (AI Agent 사용 시):**
+```env
+OPENAI_API_KEY=sk-your-api-key-here
+OPENAI_MODEL=gpt-4o-mini
 ```
 
-### 3.2 보안 주의사항
+### 3.3 보안 주의사항
 
-⚠️ **중요**: `.env` 파일은 절대 git에 커밋하지 마세요!
+- `.env` 파일은 `.gitignore`에 포함되어 있습니다
+- API 키나 비밀번호를 코드에 하드코딩하지 마세요
+- 화면 공유 시 `.env` 파일 노출에 주의하세요
 
-- `.env` 파일은 이미 `.gitignore`에 포함되어 있습니다
-- `git status`로 `.env`가 추적되지 않는지 확인하세요
-- 실제 비밀번호나 접속 정보를 코드에 하드코딩하지 마세요
-- 화면 공유 시 `.env` 파일이 노출되지 않도록 주의하세요
+## 4. 실행 방법
 
-### 3.3 E2E 테스트 실행
-
-실제 DB 연결로 E2E 테스트 실행:
+### 4.1 메인 대시보드
 
 ```bash
-# E2E 테스트 (실제 DB 연결 필요)
-pytest test/test_e2e.py::test_131_incremental_sync_e2e_real_db -v
-
-# 전체 테스트 실행
-pytest -v
-```
-
-### 3.4 Streamlit UI 실행
-
-**1단계: Oracle Instant Client 설치 (Windows)**
-
-Oracle 11g 연결을 위해 Oracle Instant Client가 필요합니다:
-
-1. [Oracle Instant Client 다운로드](https://www.oracle.com/database/technologies/instant-client/downloads.html)
-2. Windows용 64-bit Basic 패키지 다운로드
-3. `D:\instantclient_23_0`에 압축 해제 (또는 원하는 경로)
-4. `src/oracle_duckdb_sync/oracle_source.py`에서 경로 확인:
-   ```python
-   lib_dir = os.environ.get('ORACLE_HOME') or r'D:\instantclient_23_0'
-   ```
-
-**2단계: Streamlit 앱 실행**
-
-```bash
-# Windows PowerShell/CMD
 streamlit run src/oracle_duckdb_sync/ui/app.py
-
-# 브라우저가 자동으로 열리며 http://localhost:8501 에서 확인 가능
 ```
 
-**3단계: UI 사용법**
+**기능:**
+- 동기화 실행 및 상태 확인
+- 데이터 조회 및 시각화
+- CSV/Excel 다운로드
 
-1. **동기화 실행**:
-   - 좌측 사이드바에서 "지금 동기화 실행" 버튼 클릭
-   - `.env`에 설정된 테이블이 자동으로 사용됨
-   - 또는 "수동 설정 사용" 체크박스로 테이블명 직접 입력
+### 4.2 AI Agent 채팅
 
-2. **데이터 조회 및 시각화**:
-   - 동기화된 데이터를 DuckDB에서 조회
-   - 기간 필터, 정렬, 차트 렌더링 등 다양한 기능 제공
-   - CSV/Excel 다운로드 지원
+```bash
+streamlit run src/oracle_duckdb_sync/ui/pages/agent_chat.py
+```
 
-3. **동기화 상태 확인**:
-   - 동기화 로그 및 상태를 UI에서 실시간 확인
-   - 마지막 동기화 시간 및 처리된 행 수 표시
+**지원 명령 (자연어):**
 
-**주의사항**:
-- 첫 실행 시 Oracle → DuckDB로 전체 데이터 동기화가 필요합니다 (수십 분 소요 가능)
-- 이후부터는 증분 동기화로 빠르게 업데이트됩니다
-- TEST-131에서 확인된 성능: 약 200만 행 기준 5분, 초당 약 7,000 rows 처리
+| 질문 예시 | 실행 Tool |
+|-----------|-----------|
+| "현재 상태 알려줘" | `get_sync_status` |
+| "USERS 테이블 동기화 해줘" | `start_sync` |
+| "어떤 테이블이 있어?" | `list_tables` |
+| "IV 테이블 몇 건이야?" | `get_table_stats` |
+| "IV 테이블 보여줘" | `query_table` |
 
-## 4. 배경 및 문제 정의
+**AI Agent 아키텍처:**
 
-Oracle 11g에 대량의 시계열 데이터가 축적되면서 웹 애플리케이션에서 기간별 데이터 조회 시 응답 속도가 현저히 저하되는 문제가 발생했습니다. 이는 사용자 경험 저하뿐만 아니라 효율적인 데이터 분석 및 의사결정을 어렵게 만들었습니다.
+```
+사용자 질문 → LLM 추론 → Tool 선택 → 실행 → 결과 해석 → 자연어 응답
+              ↑                              |
+              └──────── ReAct Loop ──────────┘
+```
 
-## 5. 목표
+### 4.3 테스트 실행
 
-*   **비즈니스 목표**: 데이터 조회 응답 시간을 기존 대비 10배 이상 향상시키고, 직관적인 웹 기반 데이터 시각화 환경을 제공하여 통계 분석 기반 의사결정을 지원합니다.
-*   **기술 목표**: Oracle 데이터를 고속 분석 DB인 DuckDB로 마이그레이션하는 파이프라인을 구축하고, 일별 증분 데이터를 자동으로 동기화하는 시스템을 구현합니다.
+```bash
+# 전체 테스트
+pytest -v
+
+# Agent 테스트만
+pytest test/agent/ -v
+
+# E2E 테스트 제외
+pytest -v --ignore=test/database/test_e2e.py
+```
+
+### 4.4 코드 품질 검사
+
+```bash
+# Ruff 린트 검사
+ruff check src/
+
+# Ruff 자동 수정
+ruff check src/ --fix
+
+# Mypy 타입 검사
+mypy src/oracle_duckdb_sync/
+```
+
+## 5. 주요 설계 원칙
+
+1. **관심사 분리**: UI, 비즈니스 로직, 데이터 접근 레이어 분리
+2. **의존성 주입**: AgentFactory를 통한 서비스 주입으로 테스트 용이성 확보
+3. **프레임워크 독립성**: Application Layer는 UI 프레임워크에 의존하지 않음
+4. **Tool 기반 확장**: 새로운 기능은 BaseTool 구현으로 쉽게 추가 가능
+
+## 6. 문서
+
+### 구현 현황
+| Phase | 설명 | 상태 |
+|-------|------|------|
+| [Phase 01](docs/Phase%2001/plan01.md) | 기본 동기화 엔진 | ✅ 완료 |
+| [Phase 02](docs/Phase%2002/plan02.md) | UI 분리 및 서비스 레이어 | ✅ 완료 |
+| [Phase 03](docs/Phase%2003/plan03.md) | AI Agent (OpenAI gpt-4o-mini) | ✅ 완료 |
+
+### 상세 문서
+- [Phase 01 구현 완료 보고서](docs/archive/IMPLEMENTATION_PHASE1_COMPLETE.md)
+- [Phase 02 구현 완료 보고서](docs/archive/IMPLEMENTATION_PHASE2_COMPLETE.md)
+- [UI 분리 아키텍처](docs/archive/ui_separation_architecture.md)
+- [프로젝트 전체 PRD](docs/prd_main.md)

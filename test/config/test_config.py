@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 from dotenv import dotenv_values
+
 from oracle_duckdb_sync.config import load_config
 
 ENV_PATH = Path(__file__).resolve().parents[2] / ".env"
@@ -30,7 +31,7 @@ def setup_env(monkeypatch):
     ]
     for var in env_to_clear:
         monkeypatch.delenv(var, raising=False)
-    
+
     # Then set the minimal required values
     env_vars = {
         "ORACLE_HOST": "localhost",
