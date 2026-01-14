@@ -255,6 +255,57 @@ def handle_retry_sync():
     st.rerun()
 
 
+def handle_pause_sync():
+    """
+    동기화 일시정지 버튼 클릭 이벤트 처리
+
+    SyncWorker의 pause() 메서드를 호출하여 동기화를 일시정지합니다.
+    """
+    if st.session_state.sync_worker and st.session_state.sync_status == 'running':
+        st.session_state.sync_worker.pause()
+        st.session_state.sync_status = 'paused'
+        handler_logger.info("Sync paused by user")
+        st.rerun()
+    else:
+        handler_logger.warning("Cannot pause: No active sync worker or sync not running")
+
+
+def handle_resume_sync():
+    """
+    동기화 재개 버튼 클릭 이벤트 처리
+
+    일시정지된 동기화를 재개합니다.
+    """
+    if st.session_state.sync_worker and st.session_state.sync_status == 'paused':
+        st.session_state.sync_worker.resume()
+        st.session_state.sync_status = 'running'
+        handler_logger.info("Sync resumed by user")
+        st.rerun()
+    else:
+        handler_logger.warning("Cannot resume: No worker or sync not paused")
+
+
+def handle_stop_sync():
+    """
+    동기화 중지 버튼 클릭 이벤트 처리
+
+    진행 중인 동기화를 완전히 중지하고 리소스를 정리합니다.
+    """
+    if st.session_state.sync_worker:
+        st.session_state.sync_worker.stop()
+        st.session_state.sync_status = 'stopped'
+
+        # Release sync lock if exists
+        if hasattr(st.session_state, 'sync_lock') and st.session_state.sync_lock:
+            st.session_state.sync_lock.release()
+            handler_logger.info("Sync lock released after stop")
+
+        handler_logger.info("Sync stopped by user")
+        st.rerun()
+    else:
+        handler_logger.warning("Cannot stop: No active sync worker")
+
+
 def render_running_status():
     """
     동기화 실행 중 상태 UI 렌더링
@@ -284,8 +335,22 @@ def render_running_status():
     else:
         st.sidebar.info("동기화 시작 중...")
 
-    # Manual refresh button for progress updates
-    if st.sidebar.button("🔄 진행 상황 새로고침", key="refresh_progress"):
+    # Control buttons
+    st.sidebar.markdown("---")
+    st.sidebar.subheader("동기화 제어")
+
+    col1, col2, col3 = st.sidebar.columns(3)
+
+    # Pause button
+    if col1.button("⏸️ 일시정지", key="pause_sync", use_container_width=True):
+        handle_pause_sync()
+
+    # Stop button
+    if col2.button("⏹️ 중지", key="stop_sync", use_container_width=True):
+        handle_stop_sync()
+
+    # Refresh button
+    if col3.button("🔄 새로고침", key="refresh_progress", use_container_width=True):
         st.rerun()
 
 
@@ -307,6 +372,33 @@ def render_completed_status():
     # Reset button
     if st.sidebar.button("새 동기화 시작"):
         handle_reset_sync()
+
+
+def render_paused_status():
+    """
+    동기화 일시정지 상태 UI 렌더링
+    """
+    st.sidebar.markdown("---")
+    st.sidebar.warning("⏸️ 동기화 일시정지됨")
+
+    # Show current progress
+    if st.session_state.sync_progress:
+        progress = st.session_state.sync_progress
+        st.sidebar.text(f"처리된 행: {progress.get('total_rows', 0):,}")
+        elapsed = progress.get('elapsed_time', 0)
+        st.sidebar.text(f"⏱️ 경과 시간: {elapsed:.0f}초")
+
+    # Control buttons
+    st.sidebar.markdown("---")
+    col1, col2 = st.sidebar.columns(2)
+
+    # Resume button
+    if col1.button("▶️ 재개", key="resume_sync", use_container_width=True):
+        handle_resume_sync()
+
+    # Stop button
+    if col2.button("⏹️ 중지", key="stop_paused_sync", use_container_width=True):
+        handle_stop_sync()
 
 
 def render_error_status():
@@ -336,6 +428,8 @@ def render_sync_status_ui():
     """
     if st.session_state.sync_status == 'running':
         render_running_status()
+    elif st.session_state.sync_status == 'paused':
+        render_paused_status()
     elif st.session_state.sync_status == 'completed':
         render_completed_status()
     elif st.session_state.sync_status == 'error':

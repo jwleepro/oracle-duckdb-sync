@@ -1,14 +1,44 @@
 """
 AI Agent Chat Interface - Streamlit page for conversational AI.
 """
+import re
 from typing import Optional
 
+import pandas as pd
 import streamlit as st
 
 from oracle_duckdb_sync.agent import SyncAgent
 from oracle_duckdb_sync.agent.core.llm_client import LLMConfig
 from oracle_duckdb_sync.agent.factory import AgentFactory
 from oracle_duckdb_sync.config import load_config
+
+
+def detect_markdown_table(text: str) -> bool:
+    """마크다운 테이블 패턴이 있는지 감지합니다."""
+    # 파이프(|)로 시작하고 끝나는 줄이 3줄 이상 연속으로 있으면 테이블
+    table_pattern = r'(\|[^\n]+\|\n){3,}'
+    return bool(re.search(table_pattern, text))
+
+
+def parse_markdown_table(text: str) -> tuple[str, list[pd.DataFrame]]:
+    """
+    마크다운 텍스트에서 테이블을 추출하여 DataFrame 리스트로 변환합니다.
+    
+    Args:
+        text: 마크다운 텍스트
+        
+    Returns:
+        tuple: (테이블이 제거된 텍스트, DataFrame 리스트)
+    """
+    # TODO(human): 마크다운 테이블을 파싱하여 DataFrame으로 변환하는 로직 구현
+    # 힌트: 
+    # 1. 정규식으로 테이블 블록 추출 (|로 시작/끝나는 연속된 줄)
+    # 2. 각 테이블에서 헤더 행, 구분자 행(---|---), 데이터 행 분리
+    # 3. 파이프(|)로 split하여 각 셀 값 추출
+    # 4. pd.DataFrame(data, columns=headers) 로 변환
+    # 반환: (테이블이 제거된 텍스트, [DataFrame1, DataFrame2, ...])
+    
+    return text, []
 
 
 def initialize_agent():
@@ -27,9 +57,16 @@ def initialize_chat_state():
 
 
 def render_chat_message(role: str, content: str):
-    """Render a single chat message."""
+    """Render a single chat message with table support."""
     with st.chat_message(role):
-        st.markdown(content)
+        if role == "assistant" and detect_markdown_table(content):
+            remaining_text, dataframes = parse_markdown_table(content)
+            if remaining_text.strip():
+                st.markdown(remaining_text)
+            for df in dataframes:
+                st.dataframe(df, use_container_width=True)
+        else:
+            st.markdown(content)
 
 
 def stream_agent_response(
@@ -70,7 +107,14 @@ def stream_agent_response(
                 return None, []
 
             elif chunk.type == "done":
-                text_placeholder.markdown(full_text)
+                # 테이블 감지 및 렌더링
+                if detect_markdown_table(full_text):
+                    remaining_text, dataframes = parse_markdown_table(full_text)
+                    text_placeholder.markdown(remaining_text if remaining_text.strip() else "")
+                    for df in dataframes:
+                        st.dataframe(df, use_container_width=True)
+                else:
+                    text_placeholder.markdown(full_text)
                 status_placeholder.empty()
 
     return full_text, tool_results

@@ -1,216 +1,312 @@
-# Phase 02 개발 계획: Oracle-DuckDB 데이터 동기화/분석 대시보드
+# Phase 02 구현 계획: 계정 관리 및 동기화 모니터링
 
-이 계획은 TDD 및 Tidy First 원칙에 따른 개발 프로세스를 개략적으로 설명합니다.
-각 단계는 작고 검증 가능한 증분을 나타냅니다.
+## 개요
+Oracle-DuckDB 동기화 대시보드의 Phase 02 구현 계획입니다.
+- **P0 (Critical)**: 실시간 모니터링 및 제어 기능 강화
+- **P1 (High)**: 계정/권한/메뉴 관리 시스템 구축
 
-## 핵심 개발 원칙
-- **TDD 주기**: Red(실패) -> Green(성공) -> Refactor(리팩터링)
-- **Tidy First (정리 우선)**: 구조적 변경과 동작 변경을 분리합니다.
-- **커밋**: 테스트가 통과하고 린팅에 문제가 없을 때만 커밋합니다.
-
----
-
-## 1. 동기화 로그 및 통계
-
-### 1.1 로그 데이터 모델
-- [ ] **TEST-010**: 동기화 로그 저장 테이블 생성 (FR-P02-001)
-- [ ] **TEST-011**: 성공/실패 상태 기록 (FR-P02-001)
-- [ ] **TEST-012**: 인덱스별 통계 데이터 저장 (FR-P02-001)
-
-### 1.2 로그 조회 및 필터링
-- [ ] **TEST-020**: 동기화 로그 전체 조회 (FR-P02-001)
-- [ ] **TEST-021**: 성공/실패 현황 필터링 (FR-P02-001)
-- [ ] **TEST-022**: 인덱스별 통계 조회 (FR-P02-001)
-- [ ] **TEST-023**: 기간별 로그 필터링 (FR-P02-001)
+### 설계 결정사항
+- **인증 방식**: 세션 기반 (Streamlit session_state 활용)
+- **관리자 계정**: 앱 시작 시 환경변수 기반 자동 생성
 
 ---
 
-## 2. 실시간 동기화 모니터링
+## 1. PRD 요구사항 매핑
 
-### 2.1 진행 상황 추적
-- [ ] **TEST-030**: 동기화 진행률 계산 (FR-P02-002)
-- [ ] **TEST-031**: 처리 속도 측정 (건/초) (FR-P02-002)
-- [ ] **TEST-032**: 경과 시간 및 예상 남은 시간 계산 (FR-P02-002)
-
-### 2.2 실시간 UI 업데이트
-- [ ] **TEST-040**: 프로그레스 바 렌더링 (FR-P02-002)
-- [ ] **TEST-041**: 진행 상황 자동 갱신 (FR-P02-002)
-- [ ] **TEST-042**: 처리 속도 및 경과 시간 표시 (FR-P02-002)
-
----
-
-## 3. 동기화 제어
-
-### 3.1 제어 명령 처리
-- [ ] **TEST-050**: 일시정지 명령 처리 (FR-P02-003)
-- [ ] **TEST-051**: 재개 명령 처리 (FR-P02-003)
-- [ ] **TEST-052**: 취소 명령 처리 (FR-P02-003)
-
-### 3.2 상태 관리
-- [ ] **TEST-060**: 동기화 상태 변경 추적 (FR-P02-003)
-- [ ] **TEST-061**: 일시정지 후 재개 시 올바른 위치부터 재시작 (FR-P02-003)
-- [ ] **TEST-062**: 취소 시 안전한 종료 및 상태 롤백 (FR-P02-003)
-
-### 3.3 UI 제어 버튼
-- [ ] **TEST-070**: 일시정지 버튼 동작 (FR-P02-003)
-- [ ] **TEST-071**: 재개 버튼 동작 (FR-P02-003)
-- [ ] **TEST-072**: 취소 버튼 동작 (FR-P02-003)
-- [ ] **TEST-073**: 버튼 상태별 활성화/비활성화 (FR-P02-003)
+| ID | 요구사항 | 우선순위 | 현재 상태 |
+|----|----------|----------|----------|
+| FR-P02-001 | 동기화 로그·통계 | P1 | 파일 로깅만 존재 |
+| FR-P02-002 | 실시간 진행 모니터링 | P0 | 기본 구현 (개선 필요) |
+| FR-P02-003 | 동기화 제어 (일시정지/재개/취소) | P0 | 메서드 존재, UI 미연결 |
+| FR-P02-004 | 실시간 로그 스트리밍 | P0 | 미구현 |
+| FR-P02-005 | 계정 등록/변경/삭제 | P1 | 미구현 |
+| FR-P02-006 | 권한 관리 | P1 | 미구현 |
+| FR-P02-007 | 메뉴 등록/변경/삭제 | P1 | 미구현 |
+| FR-P02-008 | 권한별 메뉴 관리 | P1 | 미구현 |
+| FR-P02-009 | 멀티 테이블 설정 | P1 | 단일 테이블만 지원 |
+| FR-P02-010 | API 문서 자동 생성 | P1 | 미구현 |
+| FR-P02-011 | 아키텍처 다이어그램 | P1 | 미구현 |
 
 ---
 
-## 4. 실시간 로그 스트리밍
+## 2. 구현 단계
 
-### 4.1 로그 수집
-- [ ] **TEST-080**: 실시간 로그 메시지 수집 (FR-P02-004)
-- [ ] **TEST-081**: 로그 레벨별 분류 (INFO/WARN/ERROR) (FR-P02-004)
-- [ ] **TEST-082**: 오류 로그 즉시 감지 (FR-P02-004)
+### Phase 2-A: P0 기능 (실시간 모니터링/제어)
 
-### 4.2 로그 스트리밍 UI
-- [ ] **TEST-090**: 실시간 로그 스트림 표시 (FR-P02-004)
-- [ ] **TEST-091**: 오류 로그 하이라이트 표시 (FR-P02-004)
-- [ ] **TEST-092**: 로그 자동 스크롤 및 최대 표시 건수 제한 (FR-P02-004)
+#### 2-A-1. 동기화 제어 버튼 연결 (FR-P02-003)
+**수정 파일**: `src/oracle_duckdb_sync/ui/handlers.py`
 
----
+```python
+# 추가할 핸들러
+def handle_pause_sync():
+    if st.session_state.sync_worker:
+        st.session_state.sync_worker.pause()
+        st.session_state.sync_status = 'paused'
 
-## 5. 계정 관리
+def handle_resume_sync():
+    if st.session_state.sync_worker:
+        st.session_state.sync_worker.resume()
+        st.session_state.sync_status = 'running'
 
-### 5.1 계정 데이터 모델
-- [ ] **TEST-100**: 사용자 계정 테이블 생성 (FR-P02-005)
-- [ ] **TEST-101**: 계정 정보 필드 검증 (사용자명, 이메일, 비밀번호 해시) (FR-P02-005)
-- [ ] **TEST-102**: 비밀번호 해시 처리 (FR-P02-005)
+def handle_stop_sync():
+    if st.session_state.sync_worker:
+        st.session_state.sync_worker.stop()
+        st.session_state.sync_status = 'stopped'
+```
 
-### 5.2 계정 CRUD
-- [ ] **TEST-110**: 새 계정 등록 (FR-P02-005)
-- [ ] **TEST-111**: 계정 정보 조회 (FR-P02-005)
-- [ ] **TEST-112**: 계정 정보 변경 (FR-P02-005)
-- [ ] **TEST-113**: 계정 삭제 (FR-P02-005)
-- [ ] **TEST-114**: 중복 사용자명/이메일 검증 (FR-P02-005)
+#### 2-A-2. 실시간 로그 스트리밍 (FR-P02-004)
+**신규 파일**: `src/oracle_duckdb_sync/log/log_stream.py`
 
-### 5.3 계정 관리 UI
-- [ ] **TEST-120**: 계정 목록 표시 (FR-P02-005)
-- [ ] **TEST-121**: 계정 등록 폼 (FR-P02-005)
-- [ ] **TEST-122**: 계정 정보 수정 폼 (FR-P02-005)
-- [ ] **TEST-123**: 계정 삭제 확인 다이얼로그 (FR-P02-005)
+```python
+@dataclass
+class LogEntry:
+    timestamp: datetime
+    level: str          # INFO, WARNING, ERROR
+    source: str         # SyncEngine, SyncWorker
+    message: str
+    details: dict | None = None
 
----
+class LogStreamHandler(logging.Handler):
+    """Queue 기반 실시간 로그 핸들러"""
+    def __init__(self, max_size: int = 100):
+        self.log_queue = deque(maxlen=max_size)
 
-## 6. 권한 관리
+    def emit(self, record):
+        entry = LogEntry(...)
+        self.log_queue.append(entry)
+```
 
-### 6.1 권한 데이터 모델
-- [ ] **TEST-130**: 권한 테이블 생성 (관리자, 일반 사용자) (FR-P02-006)
-- [ ] **TEST-131**: 계정-권한 연결 테이블 생성 (FR-P02-006)
-- [ ] **TEST-132**: 기본 권한 할당 (FR-P02-006)
+#### 2-A-3. 동기화 로그/통계 저장 (FR-P02-001)
+**신규 파일**:
+- `src/oracle_duckdb_sync/models/sync_log.py`
+- `src/oracle_duckdb_sync/repository/sync_log_repo.py`
 
-### 6.2 권한 할당 및 검증
-- [ ] **TEST-140**: 계정에 권한 할당 (FR-P02-006)
-- [ ] **TEST-141**: 계정 권한 조회 (FR-P02-006)
-- [ ] **TEST-142**: 권한 변경 (FR-P02-006)
-- [ ] **TEST-143**: 권한별 접근 제어 검증 (FR-P02-006)
-
-### 6.3 권한 관리 UI
-- [ ] **TEST-150**: 권한 목록 표시 (FR-P02-006)
-- [ ] **TEST-151**: 계정별 권한 할당 UI (FR-P02-006)
-- [ ] **TEST-152**: 권한 변경 UI (FR-P02-006)
-
----
-
-## 7. 메뉴 관리
-
-### 7.1 메뉴 데이터 모델
-- [ ] **TEST-160**: 메뉴 테이블 생성 (FR-P02-007)
-- [ ] **TEST-161**: 메뉴 계층 구조 지원 (부모/자식 메뉴) (FR-P02-007)
-- [ ] **TEST-162**: 메뉴 정보 필드 검증 (이름, URL, 아이콘, 순서) (FR-P02-007)
-
-### 7.2 메뉴 CRUD
-- [ ] **TEST-170**: 새 메뉴 등록 (FR-P02-007)
-- [ ] **TEST-171**: 메뉴 정보 조회 (FR-P02-007)
-- [ ] **TEST-172**: 메뉴 정보 변경 (FR-P02-007)
-- [ ] **TEST-173**: 메뉴 삭제 (FR-P02-007)
-- [ ] **TEST-174**: 메뉴 순서 변경 (FR-P02-007)
-
-### 7.3 메뉴 관리 UI
-- [ ] **TEST-180**: 메뉴 목록 트리 표시 (FR-P02-007)
-- [ ] **TEST-181**: 메뉴 등록 폼 (FR-P02-007)
-- [ ] **TEST-182**: 메뉴 정보 수정 폼 (FR-P02-007)
-- [ ] **TEST-183**: 메뉴 삭제 확인 다이얼로그 (FR-P02-007)
+**DuckDB 테이블**:
+```sql
+CREATE TABLE sync_logs (
+    id INTEGER PRIMARY KEY,
+    sync_id VARCHAR(36) NOT NULL,
+    table_name VARCHAR(255) NOT NULL,
+    sync_type VARCHAR(20) NOT NULL,
+    status VARCHAR(20) NOT NULL,
+    start_time TIMESTAMP NOT NULL,
+    end_time TIMESTAMP,
+    total_rows INTEGER DEFAULT 0,
+    error_message TEXT
+);
+```
 
 ---
 
-## 8. 권한별 메뉴 관리
+### Phase 2-B: P1 기능 (계정/권한/메뉴)
 
-### 8.1 메뉴 권한 매핑
-- [ ] **TEST-190**: 메뉴-권한 연결 테이블 생성 (FR-P02-008)
-- [ ] **TEST-191**: 메뉴에 권한 할당 (FR-P02-008)
-- [ ] **TEST-192**: 메뉴별 권한 조회 (FR-P02-008)
-- [ ] **TEST-193**: 메뉴 권한 변경 (FR-P02-008)
+#### 2-B-1. 계정 관리 모듈 (FR-P02-005, FR-P02-006)
+**신규 디렉토리**: `src/oracle_duckdb_sync/auth/`
 
-### 8.2 권한별 메뉴 필터링
-- [ ] **TEST-200**: 사용자 권한에 따른 메뉴 필터링 (FR-P02-008)
-- [ ] **TEST-201**: 권한 없는 메뉴 접근 차단 (FR-P02-008)
-- [ ] **TEST-202**: 계층 구조에서 권한별 메뉴 표시 (FR-P02-008)
+| 파일 | 목적 |
+|------|------|
+| `models.py` | User, Role 데이터클래스 |
+| `repository.py` | DuckDB CRUD |
+| `service.py` | 인증/권한 비즈니스 로직 |
+| `password.py` | bcrypt 해싱 |
 
-### 8.3 메뉴 권한 관리 UI
-- [ ] **TEST-210**: 메뉴별 권한 할당 UI (FR-P02-008)
-- [ ] **TEST-211**: 권한별 메뉴 목록 표시 (FR-P02-008)
-- [ ] **TEST-212**: 사용자 메뉴 네비게이션 (권한 기반) (FR-P02-008)
+**데이터 모델**:
+```python
+class UserRole(Enum):
+    ADMIN = "admin"
+    USER = "user"
+
+@dataclass
+class User:
+    id: int | None = None
+    username: str = ""
+    password_hash: str = ""
+    role: UserRole = UserRole.USER
+    is_active: bool = True
+```
+
+**DuckDB 테이블**:
+```sql
+CREATE TABLE users (
+    id INTEGER PRIMARY KEY,
+    username VARCHAR(50) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(20) DEFAULT 'user',
+    is_active BOOLEAN DEFAULT TRUE
+);
+
+CREATE TABLE roles (
+    id INTEGER PRIMARY KEY,
+    name VARCHAR(50) UNIQUE NOT NULL,
+    permissions TEXT  -- JSON: '["sync:read", "admin:users"]'
+);
+```
+
+**기본 관리자 자동 생성**:
+```python
+# app.py 시작 시 실행
+def ensure_admin_exists():
+    if not user_repo.exists("admin"):
+        admin_user = os.getenv("ADMIN_USER", "admin")
+        admin_pass = os.getenv("ADMIN_PASSWORD", "admin123")
+        auth_service.create_user(admin_user, admin_pass, role=UserRole.ADMIN)
+```
+
+#### 2-B-2. 메뉴 관리 모듈 (FR-P02-007, FR-P02-008)
+**신규 디렉토리**: `src/oracle_duckdb_sync/menu/`
+
+**데이터 모델**:
+```python
+@dataclass
+class Menu:
+    id: int | None = None
+    name: str = ""
+    path: str = ""              # '/sync', '/admin/users'
+    icon: str = ""
+    parent_id: int | None = None
+    required_permission: str = ""
+    is_active: bool = True
+```
+
+#### 2-B-3. 멀티 테이블 설정 (FR-P02-009)
+**신규 디렉토리**: `src/oracle_duckdb_sync/table_config/`
+
+**데이터 모델**:
+```python
+@dataclass
+class TableConfig:
+    oracle_schema: str = ""
+    oracle_table: str = ""
+    duckdb_table: str = ""
+    primary_key: str = ""
+    time_column: str = ""
+    sync_enabled: bool = True
+    batch_size: int = 10000
+```
 
 ---
 
-## 9. End-to-End 및 통합 검증
+### Phase 2-C: 문서화 (FR-P02-010, FR-P02-011)
 
-### 9.1 동기화 모니터링 E2E
-- [ ] **TEST-220**: 전체 동기화 프로세스 모니터링 E2E (FR-P02-001, FR-P02-002, FR-P02-004)
-- [ ] **TEST-221**: 동기화 제어 기능 E2E (일시정지→재개→완료) (FR-P02-003)
-- [ ] **TEST-222**: 오류 발생 시 실시간 로그 표시 검증 (FR-P02-004)
+#### API 문서 (MkDocs)
+```
+docs/
+├── api/
+│   ├── index.md
+│   ├── auth.md
+│   ├── sync.md
+│   └── menu.md
+└── mkdocs.yml
+```
 
-### 9.2 계정 및 권한 E2E
-- [ ] **TEST-230**: 계정 생성 → 권한 할당 → 로그인 → 메뉴 접근 E2E (FR-P02-005, FR-P02-006, FR-P02-008)
-- [ ] **TEST-231**: 관리자 계정으로 메뉴 관리 E2E (FR-P02-007, FR-P02-008)
-- [ ] **TEST-232**: 일반 사용자 권한 제한 검증 E2E (FR-P02-006, FR-P02-008)
+#### 아키텍처 다이어그램 (Mermaid)
+```mermaid
+graph TB
+    subgraph UI["Streamlit UI"]
+        LOGIN[Login Page]
+        DASH[Dashboard]
+        ADMIN[Admin Pages]
+    end
 
----
+    subgraph AUTH["Auth Module"]
+        AUTH_SVC[AuthService]
+        MENU_SVC[MenuService]
+    end
 
-## 10. API 문서 관리
+    subgraph SYNC["Sync Module"]
+        WORKER[SyncWorker]
+        ENGINE[SyncEngine]
+    end
 
-### 10.1 Docstring 작성
-- [ ] **TEST-240**: 주요 모듈(config, oracle_source, duckdb_source) docstring 존재 확인 (FR-P02-010)
-- [ ] **TEST-241**: 주요 클래스(OracleSource, DuckDBSource, SyncEngine) docstring 검증 (FR-P02-010)
-- [ ] **TEST-242**: 공개 함수/메서드 docstring 포맷 검증 (Google 스타일 또는 NumPy 스타일) (FR-P02-010)
+    subgraph DATA["Data Layer"]
+        DUCKDB[(DuckDB)]
+        ORACLE[(Oracle)]
+    end
 
-### 10.2 자동 문서 생성
-- [ ] **TEST-250**: Sphinx 또는 MkDocs 설정 파일 생성 및 빌드 성공 (FR-P02-010)
-- [ ] **TEST-251**: API 문서 자동 생성 (HTML 출력 확인) (FR-P02-010)
-- [ ] **TEST-252**: 문서 빌드 명령어 README에 추가 및 실행 검증 (FR-P02-010)
-
-### 10.3 문서 품질
-- [ ] **TEST-260**: 각 모듈의 주요 클래스/함수가 문서에 포함되는지 확인 (FR-P02-010)
-- [ ] **TEST-261**: 예제 코드 포함 여부 확인 (FR-P02-010)
-- [ ] **TEST-262**: 문서 링크 무결성 검증 (깨진 링크 없음) (FR-P02-010)
-
----
-
-## 11. 아키텍처 다이어그램 관리
-
-### 11.1 다이어그램 작성
-- [ ] **TEST-270**: Mermaid 형식 아키텍처 다이어그램 파일 생성 (`docs/architecture.md`) (FR-P02-011)
-- [ ] **TEST-271**: 시스템 구성 요소 다이어그램 포함 (Oracle, DuckDB, Streamlit, Scheduler) (FR-P02-011)
-- [ ] **TEST-272**: 데이터 흐름 다이어그램 포함 (Full Sync, Incremental Sync) (FR-P02-011)
-
-### 11.2 다이어그램 통합
-- [ ] **TEST-280**: README.md에 아키텍처 다이어그램 링크 추가 (FR-P02-011)
-- [ ] **TEST-281**: 다이어그램 렌더링 확인 (GitHub, MkDocs 등에서 정상 표시) (FR-P02-011)
-- [ ] **TEST-282**: 다이어그램 정확성 검증 (실제 코드 구조와 일치) (FR-P02-011)
-
-### 11.3 다이어그램 유지보수
-- [ ] **TEST-290**: 아키텍처 변경 시 다이어그램 업데이트 프로세스 문서화 (FR-P02-011)
-- [ ] **TEST-291**: 다이어그램 버전 관리 (git 커밋 이력) (FR-P02-011)
+    LOGIN --> AUTH_SVC
+    DASH --> WORKER
+    AUTH_SVC --> DUCKDB
+    WORKER --> ENGINE
+    ENGINE --> ORACLE
+    ENGINE --> DUCKDB
+```
 
 ---
 
-## 12. 문서화 E2E 검증
+## 3. 파일 변경 요약
 
-- [ ] **TEST-300**: 신규 개발자 온보딩 시나리오 E2E (README → API 문서 → 아키텍처 다이어그램 순서로 이해 가능) (FR-P02-010, FR-P02-011)
-- [ ] **TEST-301**: 문서 빌드 및 배포 자동화 (CI/CD 파이프라인에 통합) (FR-P02-010, FR-P02-011)
+### 신규 생성 (18개)
+| 경로 | 목적 |
+|------|------|
+| `auth/__init__.py` | 인증 모듈 |
+| `auth/models.py` | User, Role 모델 |
+| `auth/repository.py` | 사용자 CRUD |
+| `auth/service.py` | 인증 로직 |
+| `auth/password.py` | bcrypt 해싱 |
+| `menu/__init__.py` | 메뉴 모듈 |
+| `menu/models.py` | Menu 모델 |
+| `menu/repository.py` | 메뉴 CRUD |
+| `menu/service.py` | 메뉴 필터링 |
+| `table_config/__init__.py` | 테이블 설정 모듈 |
+| `table_config/models.py` | TableConfig 모델 |
+| `table_config/repository.py` | 테이블 설정 CRUD |
+| `log/log_stream.py` | 실시간 로그 |
+| `models/sync_log.py` | 동기화 로그 모델 |
+| `repository/sync_log_repo.py` | 로그 저장소 |
+| `ui/pages/login.py` | 로그인 페이지 |
+| `ui/pages/admin_users.py` | 사용자 관리 |
+| `ui/pages/admin_menus.py` | 메뉴 관리 |
+
+### 수정 대상 (5개)
+| 경로 | 변경 내용 |
+|------|----------|
+| `ui/handlers.py` | 제어 핸들러 추가 |
+| `ui/session_state.py` | 인증 상태 추가 |
+| `ui/app.py` | 인증 체크, 메뉴 동적 로딩 |
+| `scheduler/sync_worker.py` | 진행률 콜백 개선 |
+| `config/config.py` | 인증 설정 추가 |
 
 ---
+
+## 4. 의존성 추가
+
+```toml
+# pyproject.toml
+bcrypt = ">=4.0.0"  # 비밀번호 해싱
+```
+
+---
+
+## 5. 검증 방법
+
+### 단위 테스트
+```bash
+pytest test/auth/ -v           # 인증 테스트
+pytest test/menu/ -v           # 메뉴 테스트
+pytest test/log/ -v            # 로그 스트리밍 테스트
+```
+
+### 통합 테스트
+```bash
+# Streamlit 앱 실행
+streamlit run src/oracle_duckdb_sync/ui/app.py
+
+# 테스트 시나리오:
+1. 로그인 → 권한별 메뉴 표시 확인
+2. 동기화 시작 → 일시정지 → 재개 → 취소
+3. 실시간 로그 스트리밍 확인
+4. 멀티 테이블 동기화 설정
+```
+
+---
+
+## 6. 구현 순서
+
+1. **P0-1**: 동기화 제어 버튼 연결 (`handlers.py` 수정)
+2. **P0-2**: 실시간 로그 스트리밍 (`log_stream.py` 신규)
+3. **P0-3**: 동기화 로그/통계 저장 (`sync_log.py` 신규)
+4. **P1-1**: 계정 관리 모듈 (`auth/` 디렉토리)
+5. **P1-2**: 메뉴 관리 모듈 (`menu/` 디렉토리)
+6. **P1-3**: 멀티 테이블 설정 (`table_config/` 디렉토리)
+7. **P1-4**: 관리자 UI 페이지 (`ui/pages/admin_*.py`)
+8. **P1-5**: API 문서 및 다이어그램 (`docs/`)

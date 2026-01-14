@@ -9,6 +9,7 @@ table metadata.
 import pandas as pd
 
 from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.config.query_constants import QUERY_CONSTANTS
 from oracle_duckdb_sync.data.converter import (
     convert_selected_columns,
     detect_and_convert_types,
@@ -115,7 +116,7 @@ def get_table_row_count(duckdb: DuckDBSource, table_name: str) -> int:
         query_logger.error(f"테이블 row 수 조회 실패: {e}")
         return 0
 
-def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = 100) -> dict:
+def query_duckdb_table(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT) -> dict:
     """
     Query DuckDB table and return converted DataFrame with metadata.
 
@@ -458,7 +459,7 @@ def _cached_convert_dataframe(data: list, columns: list, table_name: str, select
         }
 
 
-def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int = 100, time_column: str = None) -> dict:
+def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: str = None) -> dict:
     """
     Query DuckDB table with incremental caching for type conversion.
 
@@ -666,7 +667,7 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
 
 
 
-def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str, limit: int = 100, time_column: str = None) -> dict:
+def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: str = None) -> dict:
     """
     Query DuckDB table with incremental loading and show UI for selecting type conversions.
 
@@ -914,7 +915,7 @@ def query_duckdb_table_aggregated(
     duckdb: DuckDBSource,
     table_name: str,
     time_column: str,
-    interval: str = '10 minutes',
+    interval: str = QUERY_CONSTANTS.DEFAULT_AGGREGATION_INTERVAL,
     numeric_cols: list = None
 ) -> dict:
     """
@@ -945,7 +946,7 @@ def query_duckdb_table_aggregated(
             [desc[0] for desc in result.description]
 
             # Sample data for type detection
-            sample = duckdb.conn.execute(f"SELECT * FROM {table_name} LIMIT 1000").fetchdf()
+            sample = duckdb.conn.execute(f"SELECT * FROM {table_name} LIMIT {QUERY_CONSTANTS.SAMPLE_SIZE_FOR_TYPE_DETECTION}").fetchdf()
 
             # First try native numeric columns
             numeric_cols = [
