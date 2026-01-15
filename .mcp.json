@@ -2,7 +2,7 @@
   "mcpServers": {
     "serena": {
       "transport": "stdio",
-      "command": "/Users/ijiwon/.local/bin/uvx",
+      "command": "uvx",
       "args": [
         "--from",
         "git+https://github.com/oraios/serena",
@@ -11,8 +11,10 @@
       ]
     },
     "context7": {
-      "command": "npx",
+      "command": "cmd",
       "args": [
+        "/c",
+        "npx",
         "-y",
         "@upstash/context7-mcp"
       ]
