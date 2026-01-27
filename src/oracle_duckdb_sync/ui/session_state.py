@@ -30,7 +30,10 @@ def initialize_session_state():
         'sync_lock': None,
         'query_result': None,
         'converted_data_cache': {},  # Cache for converted DataFrames by table
-        'cache_metadata': {}  # Metadata for each cached table (last_timestamp, row_count, etc.)
+        'cache_metadata': {},  # Metadata for each cached table (last_timestamp, row_count, etc.)
+        # Navigation state
+        'current_page': '/dashboard',  # Current page path
+        'menu_expanded': {'user': True, 'admin': False}  # Menu expansion state
     }
 
     for key, value in defaults.items():
