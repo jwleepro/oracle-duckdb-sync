@@ -7,7 +7,7 @@
 import streamlit as st
 
 from oracle_duckdb_sync.auth import AuthService
-from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.log.logger import setup_logger
 
 # Logger 설정
@@ -54,7 +54,7 @@ def handle_login(username: str, password: str):
         return
 
     # 설정 로드
-    config = Config()
+    config = load_config()
 
     # 인증 서비스 생성
     auth_service = AuthService(config=config)
@@ -113,7 +113,7 @@ def require_auth(required_permission: str = None):
             # 권한 체크
             if required_permission:
                 user = st.session_state.get('user')
-                config = Config()
+                config = load_config()
                 auth_service = AuthService(config=config)
 
                 if not auth_service.has_permission(user, required_permission):

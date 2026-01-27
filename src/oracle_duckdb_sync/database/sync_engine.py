@@ -658,7 +658,7 @@ class SyncEngine:
             "timestamp": version_data.get("timestamp")
         }
 
-    def get_schema_versions(self, table_name: str, file_path: str = None) -> list:
+    def get_schema_versions(self, table_name: str, file_path: Optional[str] = None) -> list:
         """Get list of all versions for a table's schema mapping
 
         Args:
@@ -679,7 +679,7 @@ class SyncEngine:
         return versions
 
 
-    def create_state_checkpoint(self, file_path: str = None) -> dict:
+    def create_state_checkpoint(self, file_path: Optional[str] = None) -> dict:
         """Create a checkpoint snapshot of current sync state
 
         Args:
@@ -694,7 +694,7 @@ class SyncEngine:
         # Return a deep copy to prevent modification
         return dict(state)
 
-    def rollback_state(self, checkpoint: dict, file_path: str = None) -> bool:
+    def rollback_state(self, checkpoint: dict, file_path: Optional[str] = None) -> bool:
         """Rollback sync state to a previous checkpoint
 
         Args:
@@ -709,7 +709,7 @@ class SyncEngine:
         return self.state_manager.save_json(file_path, checkpoint)
 
     def save_partial_progress(self, table_name: str, rows_processed: int, last_row_id: int,
-                             file_path: str = None):
+                             file_path: Optional[str] = None):
         """Save partial progress during sync operation
 
         Args:
@@ -733,7 +733,7 @@ class SyncEngine:
         # Save updated progress
         self.state_manager.save_json(file_path, progress)
 
-    def load_partial_progress(self, table_name: str, file_path: str = None) -> dict:
+    def load_partial_progress(self, table_name: str, file_path: Optional[str] = None) -> dict:
         """Load partial progress for a table
 
         Args:
@@ -748,7 +748,7 @@ class SyncEngine:
         progress = self.state_manager.load_json(file_path, default_data={})
         return progress.get(table_name)
 
-    def clear_partial_progress(self, table_name: str, file_path: str = None):
+    def clear_partial_progress(self, table_name: str, file_path: Optional[str] = None):
         """Clear partial progress for a table after successful completion
 
         Args:

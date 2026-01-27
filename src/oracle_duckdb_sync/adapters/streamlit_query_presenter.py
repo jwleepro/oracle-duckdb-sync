@@ -5,17 +5,18 @@ This module provides Streamlit-specific presentation logic for query results,
 keeping all Streamlit dependencies isolated in this adapter layer.
 """
 
+from typing import Optional
+
 import pandas as pd
 import streamlit as st
-from typing import Optional
 
 from oracle_duckdb_sync.adapters.query_message_formatter import (
     QueryMessage,
-    QueryMessageFormatter
+    QueryMessageFormatter,
 )
 from oracle_duckdb_sync.application.enhanced_query_service import (
     EnhancedQueryService,
-    QueryServiceResult
+    QueryServiceResult,
 )
 from oracle_duckdb_sync.config.query_constants import QUERY_CONSTANTS
 from oracle_duckdb_sync.log.logger import setup_logger
@@ -218,12 +219,7 @@ class StreamlitQueryPresenter:
         """
         # Show success message
         if result.is_incremental:
-            # Calculate new rows (for incremental display)
-            cache_info = self.service.get_cache_info(
-                # We need table_name, but it's not in result
-                # This is a limitation - we'll just show row count
-                ""
-            )
+            # Show incremental update success
             msg = self.formatter.format_success(result.row_count)
         else:
             msg = self.formatter.format_success(result.row_count)

@@ -6,7 +6,10 @@ table metadata.
 """
 
 # UI dependencies removed - this module is now framework-independent
+from typing import Optional
+
 import pandas as pd
+import streamlit as st
 
 from oracle_duckdb_sync.config import Config
 from oracle_duckdb_sync.config.query_constants import QUERY_CONSTANTS
@@ -292,7 +295,7 @@ def _fetch_raw_data(conn, table_name: str, limit: int) -> dict:
         }
 
 
-def _fetch_incremental_data(conn, table_name: str, time_column: str, last_timestamp, limit: int = None) -> dict:
+def _fetch_incremental_data(conn, table_name: str, time_column: str, last_timestamp, limit: Optional[int] = None) -> dict:
     """
     Fetch only new/updated data since the last timestamp.
 
@@ -400,7 +403,7 @@ def _detect_conversion_suggestions(df: pd.DataFrame) -> dict:
     return detect_convertible_columns(df)
 
 
-def _cached_convert_dataframe(data: list, columns: list, table_name: str, selected_conversions: dict = None) -> dict:
+def _cached_convert_dataframe(data: list, columns: list, table_name: str, selected_conversions: Optional[dict] = None) -> dict:
     """
     Cached function that converts raw data to typed DataFrame.
 
@@ -459,7 +462,7 @@ def _cached_convert_dataframe(data: list, columns: list, table_name: str, select
         }
 
 
-def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: str = None) -> dict:
+def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: Optional[str] = None) -> dict:
     """
     Query DuckDB table with incremental caching for type conversion.
 
@@ -667,7 +670,7 @@ def query_duckdb_table_cached(duckdb: DuckDBSource, table_name: str, limit: int 
 
 
 
-def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: str = None) -> dict:
+def query_duckdb_table_with_conversion_ui(duckdb: DuckDBSource, table_name: str, limit: int = QUERY_CONSTANTS.DEFAULT_QUERY_LIMIT, time_column: Optional[str] = None) -> dict:
     """
     Query DuckDB table with incremental loading and show UI for selecting type conversions.
 

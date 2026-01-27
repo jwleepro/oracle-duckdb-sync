@@ -6,7 +6,7 @@
 
 import streamlit as st
 
-from oracle_duckdb_sync.config import Config, load_config
+from oracle_duckdb_sync.config import load_config, load_config
 from oracle_duckdb_sync.database import DuckDBSource
 from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.ui.pages.login import require_auth

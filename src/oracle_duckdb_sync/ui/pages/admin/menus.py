@@ -6,7 +6,7 @@
 
 import streamlit as st
 
-from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.menu import Menu, MenuService
 from oracle_duckdb_sync.ui.pages.login import require_auth
@@ -21,7 +21,7 @@ def render_admin_menus_page():
     st.title("📑 메뉴 관리")
 
     # 설정 및 서비스 초기화
-    config = Config()
+    config = load_config()
     menu_service = MenuService(config=config)
 
     # 탭 구성

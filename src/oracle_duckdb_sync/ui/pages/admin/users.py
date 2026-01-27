@@ -7,7 +7,7 @@
 import streamlit as st
 
 from oracle_duckdb_sync.auth import AuthService, UserRole
-from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.ui.pages.login import require_auth
 
@@ -21,7 +21,7 @@ def render_admin_users_page():
     st.title("👥 사용자 관리")
 
     # 설정 및 서비스 초기화
-    config = Config()
+    config = load_config()
     auth_service = AuthService(config=config)
 
     # 탭 구성

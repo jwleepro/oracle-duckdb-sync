@@ -295,7 +295,10 @@ class QueryMessageFormatter:
         """
         return QueryMessage(
             level='warning',
-            message=f"조회 결과가 없습니다. 테이블 '{table_name}'이(가) 비어있거나 존재하지 않습니다."
+            message=(
+                f"조회 결과가 없습니다. 테이블 '{table_name}'이(가) "
+                "비어있거나 존재하지 않습니다."
+            )
         )
 
     @staticmethod

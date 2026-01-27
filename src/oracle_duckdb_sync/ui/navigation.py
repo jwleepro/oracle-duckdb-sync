@@ -9,7 +9,7 @@ from typing import List, Optional
 import streamlit as st
 
 from oracle_duckdb_sync.auth import AuthService, User
-from oracle_duckdb_sync.config import Config
+from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.log.logger import setup_logger
 from oracle_duckdb_sync.menu import Menu, MenuService
 from oracle_duckdb_sync.ui.components import (
@@ -149,7 +149,7 @@ def render_sidebar_navigation(user: User):
     Args:
         user: 현재 로그인한 사용자
     """
-    config = Config()
+    config = load_config()
     auth_service = AuthService(config=config)
     menu_service = MenuService(config=config)
 

@@ -5,11 +5,12 @@
 """
 
 import importlib
-from typing import Callable, Dict, Optional, Tuple
+from typing import Callable, Optional
 
 import streamlit as st
 
 from oracle_duckdb_sync.auth import User
+from oracle_duckdb_sync.config import load_config
 from oracle_duckdb_sync.log.logger import setup_logger
 
 logger = setup_logger('Router')
@@ -20,7 +21,7 @@ class PageRouter:
 
     def __init__(self):
         """라우터 초기화"""
-        self.routes: Dict[str, Tuple[str, str, Optional[str]]] = {}
+        self.routes: dict[str, tuple[str, str, Optional[str]]] = {}
         self._register_default_routes()
 
     def _register_default_routes(self):
@@ -33,11 +34,20 @@ class PageRouter:
 
         # 관리자 페이지
         self.register('/admin/sync', 'oracle_duckdb_sync.ui.pages.admin.sync', 'render_sync_page', 'admin:*')
-        self.register('/admin/users', 'oracle_duckdb_sync.ui.pages.admin.users', 'render_admin_users_page', 'user:read')
+        self.register(
+            '/admin/users', 'oracle_duckdb_sync.ui.pages.admin.users',
+            'render_admin_users_page', 'user:read'
+        )
         self.register('/admin/menus', 'oracle_duckdb_sync.ui.pages.admin.menus', 'render_admin_menus_page', 'admin:*')
-        self.register('/admin/tables', 'oracle_duckdb_sync.ui.pages.admin.tables', 'render_admin_tables_page', 'admin:*')
+        self.register(
+            '/admin/tables', 'oracle_duckdb_sync.ui.pages.admin.tables',
+            'render_admin_tables_page', 'admin:*'
+        )
 
-    def register(self, path: str, module_path: str, function_name: str, required_permission: Optional[str] = None):
+    def register(
+        self, path: str, module_path: str, function_name: str,
+        required_permission: Optional[str] = None
+    ):
         """
         라우트 등록
 
@@ -71,9 +81,8 @@ class PageRouter:
         # 권한 체크
         if required_permission and user:
             from oracle_duckdb_sync.auth import AuthService
-            from oracle_duckdb_sync.config import Config
 
-            config = Config()
+            config = load_config()
             auth_service = AuthService(config=config)
 
             if not auth_service.has_permission(user, required_permission):
@@ -100,7 +109,7 @@ class PageRouter:
             logger.error(f"Error rendering page {path}: {e}", exc_info=True)
             return False
 
-    def get_routes(self) -> Dict[str, Tuple[str, str, Optional[str]]]:
+    def get_routes(self) -> dict[str, tuple[str, str, Optional[str]]]:
         """
         등록된 모든 라우트 반환
 
